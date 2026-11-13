@@ -28,6 +28,8 @@ export const BankAccountRow = z.object({
   referralCodeText: z.string(),
   /** Mã DAO SALE của VPa, VPb; `''` = không có. */
   referralDaoSale: z.string().default(''),
+  /** Mã đơn hàng của dòng ShopeePay; `''` = không có. */
+  trackingCode: z.string().default(''),
   accountType: AccountType,
   channel: z.string(),
   appInstalled: z.boolean(),
@@ -83,9 +85,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
-  /** Ngân hàng liên kết và mã đơn hàng của dòng ShopeePay; `''` = không có. */
+  /** Ngân hàng liên kết của dòng ShopeePay; `''` = không có. */
   linkedBankName: z.string().default(''),
-  trackingCode: z.string().default(''),
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
   /**

@@ -782,6 +782,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   referralCode: r.referralCode,
   referralCodeText: r.referralCodeText,
   referralDaoSale: r.referralDaoSale,
+  trackingCode: r.trackingCode,
   accountType: accountTypeOf(r),
   channel: r.channel,
   appInstalled: r.appInstalled,
@@ -938,13 +939,22 @@ export const accountOpenedDayBetween = (from: string, to: string): SQL =>
     ),
   ) as SQL;
 
+const trackingCodeOrSearchWhere = (raw: string): SQL | undefined => {
+  const code = raw.replace(/\s/g, "");
+  if (!code) return undefined;
+  return or(
+    searchWhere(raw, []),
+    sql`${bankAccounts.trackingCode} ilike '%' || ${likeEscape(code)} || '%' escape '\\'`,
+  );
+};
+
 /** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
-const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQL =>
+const bankAccountsOfBankWhere =(bankId: string, filters: BankOfBankFilters): SQL =>
   and(
     eq(bankAccounts.bankId, bankId),
     ...([
-      // Màn này đã có ô lọc mã riêng (`referralCodeId`), ô tìm không tra mã.
-      searchWhere(filters.search, []),
+      // Màn này đã có ô lọc mã riêng (`referralCodeId`), ô tìm không tra mã giới thiệu.
+      trackingCodeOrSearchWhere(filters.search),
       usableDate(filters.from) || usableDate(filters.to)
         ? accountOpenedDayBetween(
             usableDate(filters.from) ? filters.from : "1970-01-01",
@@ -1368,7 +1378,6 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountType,
     note: r.note,
     linkedBankName: r.linkedBankName,
-    trackingCode: r.trackingCode,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,

@@ -33,6 +33,7 @@ import {
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   BankAccountStatus,
+  isNonBankCode,
 } from "@/lib/api/bankAccounts";
 import { fetchBankReferralCodeOptions, fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -125,6 +126,12 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   { key: "department", label: "Phòng", render: (r) => r.createdByDepartmentName ?? "—" },
 ];
 
+const NON_BANK_COLUMNS: RankColumn<BankAccountRow>[] = COLUMNS.flatMap((c) =>
+  c.key === "accountNumber"
+    ? [c, { key: "trackingCode", label: "Mã đơn hàng", render: (r) => r.trackingCode || "—" }]
+    : [c],
+);
+
 type Tab = "accounts" | "photos" | "photo-stats";
 
 const TAB_OPTIONS = [
@@ -200,6 +207,8 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const bank = banks.find((b) => b.id === id);
+  const nonBank = isNonBankCode(bank?.code ?? "");
+  const columns = nonBank ? NON_BANK_COLUMNS : COLUMNS;
 
   /** Ngân hàng ngoài phạm vi thì không gọi mạng — máy chủ trả 403. */
   const inScope = canManageBank(user, id);
@@ -365,6 +374,9 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
           // `text` cho STK và mã: để mặc định thì Excel hiểu là số học và cắt
           // mất số 0 đầu.
           { header: "STK", ...ACCOUNT, width: 16, type: "text", value: (r) => r.accountNumber },
+          ...(nonBank
+            ? [{ header: "MÃ ĐƠN HÀNG", ...ACCOUNT, width: 20, type: "text" as const, value: (r: BankAccountRow) => r.trackingCode }]
+            : []),
           // Mã text ĐỨNG TRƯỚC tên hiển thị: file này đem đối chiếu với bảng
           // của ngân hàng, mà bên đó chỉ có chuỗi mã. Mã QR-only không có chuỗi
           // nào nên ô chỉ còn tên.
@@ -500,7 +512,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         {/* Cùng bộ lọc cho cả hai tab, nên ô tìm cũng lọc lưới ảnh theo tên khách. */}
         <SearchField
           label="Tìm khách hàng"
-          placeholder="Tìm tên khách hàng…"
+          placeholder={nonBank ? "Tìm tên khách hàng, mã đơn hàng…" : "Tìm tên khách hàng…"}
           value={search}
           onChange={(v) => {
             // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
@@ -693,11 +705,11 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               retrying={isFetching}
             />
           ) : isPending && inScope ? (
-            <SkeletonTable rows={8} columns={COLUMNS.length} />
+            <SkeletonTable rows={8} columns={columns.length} />
           ) : (
             <RankTable
               rows={data.rows}
-              columns={COLUMNS}
+              columns={columns}
               rowKey={(r) => r.id}
               defaultSort="date"
               // Dòng là LINK, không phải `onRowClick` (chốt 2026-09-05): người
