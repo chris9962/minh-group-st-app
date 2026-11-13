@@ -318,8 +318,9 @@ export const employeeWorkDays = pgTable(
 /**
  * Hồ sơ HR của nhân viên, nhập từ file hồ sơ nhân viên của phòng Kế toán bằng
  * `bun run db:import-contract-types`. Giữ nguyên chữ của file, chỉ đổi ngày về
- * dạng `YYYY-MM-DD`. Chưa màn nào đọc bảng này (chốt 2026-09-25: nhập sẵn để
- * dùng sau).
+ * dạng `YYYY-MM-DD`. Số tài khoản, ngân hàng nhận và mã ngân hàng ghi lại bằng
+ * `bun run db:import-staff-banks` (2026-11-13), và chỉ đọc ở file Lương và file
+ * Tạm ứng.
  *
  * ⚠️ Có CCCD, mã số thuế, số tài khoản ngân hàng. Route nào đọc bảng này phải có
  * quyền riêng, không trả kèm hồ sơ nhân viên thông thường.
@@ -348,6 +349,8 @@ export const staffProfiles = pgTable("staff_profiles", {
   address: text("address"),
   bankAccountNumber: text("bank_account_number"),
   bankName: text("bank_name"),
+  /** Mã Citad của ngân hàng nhận, ví dụ 01358001 của TPBank. Không bắt buộc. */
+  bankCode: text("bank_code"),
   bankBranch: text("bank_branch"),
   nationality: text("nationality"),
   email: text("email"),

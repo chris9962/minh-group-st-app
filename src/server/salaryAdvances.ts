@@ -28,6 +28,7 @@ import {
   salaryAdjustments,
   salaryAdvanceEvents,
   salaryAdvanceRequests,
+  staffProfiles,
   staffRoster,
   users,
 } from "./db/schema";
@@ -696,10 +697,14 @@ export async function advanceExportRows(
       amount: salaryAdvanceRequests.amount,
       status: salaryAdvanceRequests.status,
       createdAt: salaryAdvanceRequests.createdAt,
+      bankAccountNumber: staffProfiles.bankAccountNumber,
+      bankName: staffProfiles.bankName,
+      bankCode: staffProfiles.bankCode,
     })
     .from(salaryAdvanceRequests)
     .innerJoin(users, eq(users.id, salaryAdvanceRequests.userId))
     .leftJoin(departments, eq(departments.id, salaryAdvanceRequests.departmentId))
+    .leftJoin(staffProfiles, eq(staffProfiles.userId, salaryAdvanceRequests.userId))
     .where(
       and(
         eq(salaryAdvanceRequests.yearMonth, month),
@@ -714,5 +719,8 @@ export async function advanceExportRows(
     staffCode: r.staffCode ?? "",
     departmentName: r.departmentName ?? "",
     createdAt: r.createdAt.toISOString(),
+    bankAccountNumber: r.bankAccountNumber ?? "",
+    bankName: r.bankName ?? "",
+    bankCode: r.bankCode ?? "",
   }));
 }

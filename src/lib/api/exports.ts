@@ -480,6 +480,9 @@ export const SalaryExportRow = z.object({
   advance: z.number(),
   /** Lương cuối cùng = `pointsSalary` + `bonus` - `deduction` - `advance`. */
   salary: z.number(),
+  bankAccountNumber: z.string(),
+  bankName: z.string(),
+  bankCode: z.string(),
   /** Lý do ghi lúc bấm "Không tính điểm phòng"; `null` là vẫn tính điểm phòng. */
   excludedNote: z.string().nullable(),
 });

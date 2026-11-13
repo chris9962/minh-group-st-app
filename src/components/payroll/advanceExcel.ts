@@ -4,6 +4,7 @@ import { formatDateTime } from "@/lib/format";
 
 const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
 const TAM_UNG = { group: "TẠM ỨNG", groupColor: EXCEL_GROUP_COLORS.account };
+const TAI_KHOAN = { group: "TÀI KHOẢN NHẬN", groupColor: EXCEL_GROUP_COLORS.staff };
 
 const COLUMNS: ExcelColumn<AdvanceExportRow>[] = [
   { header: "STT", ...NHAN_SU, type: "number", width: 6, total: (rows) => rows.length, value: (_r, i) => i + 1 },
@@ -21,6 +22,9 @@ const COLUMNS: ExcelColumn<AdvanceExportRow>[] = [
   },
   { header: "TRẠNG THÁI", ...TAM_UNG, width: 18, value: (r) => ADVANCE_STATUS_LABEL[r.status] },
   { header: "NGÀY GỬI", ...TAM_UNG, width: 18, value: (r) => formatDateTime(r.createdAt) },
+  { header: "SỐ TÀI KHOẢN", ...TAI_KHOAN, type: "text", width: 18, value: (r) => r.bankAccountNumber },
+  { header: "NGÂN HÀNG NHẬN", ...TAI_KHOAN, width: 16, value: (r) => r.bankName },
+  { header: "MÃ NGÂN HÀNG", ...TAI_KHOAN, type: "text", width: 14, value: (r) => r.bankCode },
 ];
 
 /** File của kế toán: yêu cầu Đã duyệt chưa vào file nào, theo bộ lọc đang xem. Trả các dòng đã xuất. */

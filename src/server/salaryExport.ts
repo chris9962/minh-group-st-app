@@ -11,6 +11,7 @@ import {
   departments,
   kpiAdjustments,
   kpiScores,
+  staffProfiles,
   staffRoster,
   users,
 } from "./db/schema";
@@ -41,6 +42,9 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       departmentId: staffRoster.departmentId,
       managedDepartmentIds: staffRoster.managedDepartmentIds,
       points: sql<number>`(coalesce(${kpiScores.bankingPoints}, 0) + coalesce(${kpiScores.servicePoints}, 0) + coalesce(${kpiScores.socialInsurancePoints}, 0))::float`,
+      bankAccountNumber: staffProfiles.bankAccountNumber,
+      bankName: staffProfiles.bankName,
+      bankCode: staffProfiles.bankCode,
     })
     .from(users)
     .innerJoin(
@@ -48,6 +52,7 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
     )
     .leftJoin(kpiScores, and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)))
+    .leftJoin(staffProfiles, eq(staffProfiles.userId, users.id))
     .where(inArray(staffRoster.role, ["staff", "deputy-head", "head", "deputy-director"]));
 
   const picked = roster.filter((r) =>
@@ -131,6 +136,9 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       deductionReason: notesOf("deduction"),
       advance: totalOf("advance"),
       salary: salary?.amount ?? 0,
+      bankAccountNumber: r.bankAccountNumber ?? "",
+      bankName: r.bankName ?? "",
+      bankCode: r.bankCode ?? "",
       excludedNote: exclusions.get(r.id) ?? null,
     };
   });

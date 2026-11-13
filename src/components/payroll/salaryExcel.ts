@@ -18,6 +18,7 @@ export function salaryExportColumns(): SalaryExportColumn[] {
   const APP = { group: "APP", groupColor: EXCEL_GROUP_COLORS.account };
   const DIEM = { group: "ĐIỂM", groupColor: EXCEL_GROUP_COLORS.points };
   const LUONG = { group: "LƯƠNG" };
+  const TAI_KHOAN = { group: "TÀI KHOẢN NHẬN", groupColor: EXCEL_GROUP_COLORS.staff };
   const sum = (pick: (r: SalaryExportRow) => number) => (rows: SalaryExportRow[]) =>
     Number(rows.reduce((t, r) => t + pick(r), 0).toFixed(2));
   const finalPoints = (r: SalaryExportRow) => Number((r.points + r.minusPoints + r.plusPoints).toFixed(2));
@@ -44,6 +45,9 @@ export function salaryExportColumns(): SalaryExportColumn[] {
     { key: "deductionReason", header: "LÝ DO TRỪ LƯƠNG", ...LUONG, width: 30, defaultOn: true, sample: ["", "đi trễ"], value: (r: SalaryExportRow) => r.deductionReason },
     { key: "advance", header: "LƯƠNG ỨNG TRƯỚC", ...LUONG, type: "number", width: 15, defaultOn: true, sample: ["2000000", "0"], total: sum((r) => r.advance), value: (r: SalaryExportRow) => r.advance },
     { key: "salary", header: "LƯƠNG CUỐI CÙNG", ...LUONG, type: "number", width: 15, defaultOn: true, sample: ["7512000", "6760000"], total: sum((r) => r.salary), value: (r: SalaryExportRow) => r.salary },
+    { key: "bankAccountNumber", header: "SỐ TÀI KHOẢN", ...TAI_KHOAN, type: "text", width: 18, defaultOn: true, sample: ["10001234567", "0123456789"], value: (r: SalaryExportRow) => r.bankAccountNumber },
+    { key: "bankName", header: "NGÂN HÀNG NHẬN", ...TAI_KHOAN, width: 16, defaultOn: true, sample: ["TPBank", "VPBank"], value: (r: SalaryExportRow) => r.bankName },
+    { key: "bankCode", header: "MÃ NGÂN HÀNG", ...TAI_KHOAN, type: "text", width: 14, defaultOn: true, sample: ["01358001", ""], value: (r: SalaryExportRow) => r.bankCode },
   ];
 }
 

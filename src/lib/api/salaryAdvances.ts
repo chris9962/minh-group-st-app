@@ -168,6 +168,9 @@ export const AdvanceExportRow = z.object({
   amount: z.number(),
   status: AdvanceStatus,
   createdAt: z.string(),
+  bankAccountNumber: z.string(),
+  bankName: z.string(),
+  bankCode: z.string(),
 });
 export type AdvanceExportRow = z.infer<typeof AdvanceExportRow>;
 
