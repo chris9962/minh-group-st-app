@@ -9,6 +9,7 @@ import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 import { NotificationSettings } from "@/components/profile/NotificationSettings";
 import { SettingsAction, SettingsGroup, SettingsRow } from "@/components/ui/SettingsList";
 import { fetchProfileInfo } from "@/lib/api/profile";
+import { fetchMyPayment } from "@/lib/api/staffPayment";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
@@ -27,6 +28,7 @@ export default function ProfilePage() {
   const [editingInfo, setEditingInfo] = useState(false);
   // Số điện thoại không nằm trong phiên đăng nhập nên đọc riêng.
   const { data: info } = useQuery({ queryKey: ["profile-info"], queryFn: fetchProfileInfo });
+  const { data: payment } = useQuery({ queryKey: ["profile-payment"], queryFn: fetchMyPayment });
   if (!user) return null;
 
   return (
@@ -52,6 +54,19 @@ export default function ProfilePage() {
               accent
               disabled={!info}
               onClick={() => setEditingInfo(true)}
+            />
+          </SettingsGroup>
+
+          {/* Chỉ xem: nhân viên không tự sửa tài khoản nhận lương (chốt 2026-11-13). */}
+          <SettingsGroup title="Thông tin thanh toán">
+            <SettingsRow
+              label="Số tài khoản"
+              value={<span className="tabular-nums">{payment?.bankAccountNumber || "—"}</span>}
+            />
+            <SettingsRow label="Ngân hàng nhận" value={payment?.bankName || "—"} />
+            <SettingsRow
+              label="Mã ngân hàng"
+              value={<span className="tabular-nums">{payment?.bankCode || "—"}</span>}
             />
           </SettingsGroup>
 

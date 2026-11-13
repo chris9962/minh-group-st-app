@@ -13,6 +13,7 @@ import { PersonActivityTabs } from "@/components/people/PersonActivityTabs";
 import { PersonAuditLog } from "@/components/people/PersonAuditLog";
 import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
 import { AccountCard } from "@/components/staff/AccountCard";
+import { PaymentInfoCard } from "@/components/staff/PaymentInfoCard";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { SectionTabs, type SectionOption } from "@/components/ui/SectionTabs";
@@ -28,10 +29,11 @@ import styles from "./page.module.scss";
  * đã có một tab tên "Tài khoản" nghĩa là tài khoản NGÂN HÀNG của khách. Hai chữ
  * giống nhau ở hai tầng chỉ tổ làm người dùng bấm nhầm.
  */
-type SectionKey = "kpi" | "account" | "audit";
+type SectionKey = "kpi" | "account" | "payment" | "audit";
 
 const KPI_SECTION: SectionOption = { value: "kpi", label: "KPI & hoạt động" };
 const ACCOUNT_SECTION: SectionOption = { value: "account", label: "Tài khoản & quyền" };
+const PAYMENT_SECTION: SectionOption = { value: "payment", label: "Thông tin thanh toán" };
 const AUDIT_SECTION: SectionOption = { value: "audit", label: "Nhật ký hoạt động" };
 
 /** P-52 · Xem theo một nhân viên. */
@@ -77,13 +79,17 @@ export default function PersonPage({
   const canManage =
     (can(actor, "staff", "create") || can(actor, "staff", "update")) && actor?.id !== id;
   const showAccount = canManage && section === "account";
+  // Số tài khoản nhận lương: chỉ người có quyền chốt lương, cùng quyền với file chuyển lương.
+  const canPayment = can(actor, "system", "close-salary");
+  const showPayment = canPayment && section === "payment";
   // Cùng quyền với màn P-93: nhật ký có lượt xem CCCD, không mở theo `staff:*`.
   const canAudit = can(actor, "system", "manage-org");
   const showAudit = canAudit && section === "audit";
-  const showKpi = !showAccount && !showAudit;
+  const showKpi = !showAccount && !showPayment && !showAudit;
   const sections = [
     KPI_SECTION,
     ...(canManage ? [ACCOUNT_SECTION] : []),
+    ...(canPayment ? [PAYMENT_SECTION] : []),
     ...(canAudit ? [AUDIT_SECTION] : []),
   ];
 
@@ -117,6 +123,12 @@ export default function PersonPage({
         {data && showAccount && (
           <div className={styles.accountSection}>
             <AccountCard staffId={id} />
+          </div>
+        )}
+
+        {data && showPayment && (
+          <div className={styles.accountSection}>
+            <PaymentInfoCard staffId={id} />
           </div>
         )}
 

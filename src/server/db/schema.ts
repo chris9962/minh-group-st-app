@@ -319,8 +319,8 @@ export const employeeWorkDays = pgTable(
  * Hồ sơ HR của nhân viên, nhập từ file hồ sơ nhân viên của phòng Kế toán bằng
  * `bun run db:import-contract-types`. Giữ nguyên chữ của file, chỉ đổi ngày về
  * dạng `YYYY-MM-DD`. Số tài khoản, ngân hàng nhận và mã ngân hàng ghi lại bằng
- * `bun run db:import-staff-banks` (2026-11-13), và chỉ đọc ở file Lương và file
- * Tạm ứng.
+ * `bun run db:import-staff-banks` (2026-11-13) hoặc tab Thông tin thanh toán ở
+ * hồ sơ nhân viên. Ba cột này đọc ở file Lương, file Tạm ứng, tab đó và màn Cá nhân.
  *
  * ⚠️ Có CCCD, mã số thuế, số tài khoản ngân hàng. Route nào đọc bảng này phải có
  * quyền riêng, không trả kèm hồ sơ nhân viên thông thường.
