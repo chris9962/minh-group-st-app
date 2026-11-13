@@ -1,15 +1,14 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Percent, Plus, Target, Trash2 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { Percent, Target } from "lucide-react";
+import { useId, useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
@@ -20,14 +19,13 @@ import {
 } from "@/lib/api/socialInsurance";
 import {
   fetchSocialInsuranceSettings,
-  MAX_RATE_MONTHS,
   MAX_REVENUE_PER_POINT,
   saveSocialInsuranceSettings,
   type SocialInsuranceSettings,
 } from "@/lib/api/socialInsuranceSettings";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { parseMoneyCents } from "@/lib/money";
-import { decimalOnly, digitsOnly } from "@/lib/numberField";
+import { decimalOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./SocialInsuranceSettingsSection.module.scss";
 
@@ -53,14 +51,7 @@ export function SocialInsuranceSettingsSection({ month }: { month: string }) {
   );
 }
 
-type RateText = {
-  id: number;
-  kind: SocialInsuranceKind;
-  plan: SocialInsurancePlan;
-  months: string;
-  receive: string;
-  pay: string;
-};
+type RateText = { receive: string; pay: string };
 
 /** `9120` ra `9,12`. */
 const rateText = (rate: number) => String(rate / 1000).replace(".", ",");
@@ -88,93 +79,55 @@ const revenueError = (text: string) =>
 
 const moneyText = (value: number) => new Intl.NumberFormat("vi-VN").format(value);
 
-const KPI_KEYS = SocialInsuranceKind.options.flatMap((kind) =>
+/** Mỗi loại mỗi phương án đúng một dòng, cho cả % hoa hồng và mức điểm. */
+const PLAN_KEYS = SocialInsuranceKind.options.flatMap((kind) =>
   SocialInsurancePlan.options.map((plan) => ({ kind, plan })),
 );
-const KIND_OPTIONS = SocialInsuranceKind.options.map((k) => ({ value: k, label: KIND_LABEL[k] }));
 
-/** Hai dòng tái tục luôn đứng đầu; tháng thiếu dòng nào thì dựng dòng trống cho người dùng điền. */
-function initialRates(rates: SocialInsuranceSettings["rates"]): RateText[] {
-  const renewal = SocialInsuranceKind.options.map((kind) => {
-    const row = rates.find((r) => r.kind === kind && r.plan === "renewal");
-    return {
-      kind,
-      plan: "renewal" as const,
-      months: "",
-      receive: row ? rateText(row.receiveRate) : "",
-      pay: row ? rateText(row.payRate) : "",
-    };
-  });
-  const added = rates
-    .filter((r) => r.plan === "new")
-    .map((r) => ({
-      kind: r.kind,
-      plan: r.plan,
-      months: String(r.months),
-      receive: rateText(r.receiveRate),
-      pay: rateText(r.payRate),
-    }));
-  return [...renewal, ...added].map((r, id) => ({ ...r, id }));
-}
-
-type RateValues = {
-  kind: string;
-  plan: string;
-  months: number;
-  receiveRate: number | null;
-  payRate: number | null;
-};
+type RateValues = { kind: string; plan: string; receiveRate: number | null; payRate: number | null };
 type KpiValues = { kind: string; plan: string; revenuePerPoint: number | null };
 
 /** Bộ số theo thứ tự cố định, để so số đang gõ với số đã tải. */
 const snapshot = (rates: RateValues[], kpi: KpiValues[]) =>
   JSON.stringify([
-    rates.map((r) => [r.kind, r.plan, r.months, r.receiveRate, r.payRate].join("|")).sort(),
+    rates.map((r) => [r.kind, r.plan, r.receiveRate, r.payRate].join("|")).sort(),
     kpi.map((k) => [k.kind, k.plan, k.revenuePerPoint].join("|")).sort(),
   ]);
 
 function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
   const queryClient = useQueryClient();
-  const [rates, setRates] = useState<RateText[]>(() => initialRates(data.rates));
-  const [nextId, setNextId] = useState(rates.length);
+  const [rates, setRates] = useState<Record<string, RateText>>(() =>
+    Object.fromEntries(
+      PLAN_KEYS.map(({ kind, plan }) => {
+        const row = data.rates.find((r) => r.kind === kind && r.plan === plan);
+        return [
+          `${kind}|${plan}`,
+          { receive: row ? rateText(row.receiveRate) : "", pay: row ? rateText(row.payRate) : "" },
+        ];
+      }),
+    ),
+  );
   const [kpi, setKpi] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      KPI_KEYS.map(({ kind, plan }) => {
+      PLAN_KEYS.map(({ kind, plan }) => {
         const row = data.kpi.find((k) => k.kind === kind && k.plan === plan);
         return [`${kind}|${plan}`, row ? moneyText(row.revenuePerPoint) : ""];
       }),
     ),
   );
   const [confirming, setConfirming] = useState(false);
-  const rowsRef = useRef<HTMLTableSectionElement>(null);
-  const addRowRef = useRef<HTMLDivElement>(null);
 
-  const parsedRates = rates.map((r) => ({
-    kind: r.kind,
-    plan: r.plan,
-    months: r.plan === "renewal" ? 0 : Number(r.months || "0"),
-    receiveRate: rateValue(r.receive),
-    payRate: rateValue(r.pay),
-  }));
-  const seenMonths = new Set<string>();
-  const rateErrors = parsedRates.map((r, i) => {
-    let months: string | null = null;
-    if (r.plan === "new") {
-      const key = `${r.kind}|${r.months}`;
-      if (rates[i].months === "") months = "Nhập số tháng";
-      else if (r.months < 1 || r.months > MAX_RATE_MONTHS) months = `Từ 1 đến ${MAX_RATE_MONTHS}`;
-      else if (seenMonths.has(key)) months = "Bị lặp";
-      seenMonths.add(key);
-    }
-    return { months, receive: percentError(rates[i].receive), pay: percentError(rates[i].pay) };
+  const parsedRates = PLAN_KEYS.map(({ kind, plan }) => {
+    const text = rates[`${kind}|${plan}`];
+    return { kind, plan, receiveRate: rateValue(text.receive), payRate: rateValue(text.pay) };
   });
-  const parsedKpi = KPI_KEYS.map(({ kind, plan }) => ({
+  const parsedKpi = PLAN_KEYS.map(({ kind, plan }) => ({
     kind,
     plan,
     revenuePerPoint: revenueValue(kpi[`${kind}|${plan}`]),
   }));
   const valid =
-    rateErrors.every((e) => !e.months && !e.receive && !e.pay) &&
+    parsedRates.every((r) => r.receiveRate !== null && r.payRate !== null) &&
     parsedKpi.every((k) => k.revenuePerPoint !== null);
   // Tháng đang dùng bộ của tháng khác: lưu y nguyên cũng là tạo bộ riêng cho tháng này.
   const changed =
@@ -200,21 +153,8 @@ function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
   });
 
   const locked = data.locked;
-  const setRate = (id: number, patch: Partial<RateText>) =>
-    setRates((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  const addRate = () => {
-    setRates((prev) => [...prev, { id: nextId, kind: "bhyt", plan: "new", months: "", receive: "", pay: "" }]);
-    setNextId((n) => n + 1);
-  };
-  const removeRate = (id: number) => {
-    const next = rates[rates.findIndex((r) => r.id === id) + 1];
-    // Nút xoá mất theo dòng: không dời focus thì bàn phím rơi về đầu trang.
-    const target = next
-      ? rowsRef.current?.querySelector<HTMLElement>(`[data-rate-id="${next.id}"] select`)
-      : addRowRef.current?.querySelector<HTMLElement>("button");
-    target?.focus();
-    setRates((prev) => prev.filter((x) => x.id !== id));
-  };
+  const setRate = (key: string, patch: Partial<RateText>) =>
+    setRates((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   const copiedFrom = data.ratesFrom ?? data.kpiFrom;
 
   return (
@@ -237,61 +177,27 @@ function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
               <tr>
                 <th scope="col">Loại</th>
                 <th scope="col">Phương án</th>
-                <th scope="col">Số tháng</th>
                 <th scope="col">% nhận</th>
                 <th scope="col">% chi</th>
-                <th scope="col">
-                  <span className="sr-only">Thao tác</span>
-                </th>
               </tr>
             </thead>
-            <tbody ref={rowsRef}>
-              {rates.map((r, i) => {
-                const errors = rateErrors[i];
-                const renewal = r.plan === "renewal";
-                const name = renewal ? `${KIND_LABEL[r.kind]} ${PLAN_LABEL.renewal}` : `Dòng ${i + 1}`;
+            <tbody>
+              {PLAN_KEYS.map(({ kind, plan }) => {
+                const key = `${kind}|${plan}`;
+                const name = `${KIND_LABEL[kind]} ${PLAN_LABEL[plan]}`;
                 return (
-                  <tr key={r.id} data-rate-id={r.id}>
-                    <td>
-                      {renewal ? (
-                        KIND_LABEL[r.kind]
-                      ) : (
-                        <Select
-                          label={`${name}: Loại`}
-                          hideLabel
-                          value={r.kind}
-                          options={KIND_OPTIONS}
-                          disabled={locked}
-                          onChange={(value) => setRate(r.id, { kind: SocialInsuranceKind.parse(value) })}
-                        />
-                      )}
-                    </td>
-                    <td>{PLAN_LABEL[r.plan]}</td>
-                    <td>
-                      {renewal ? (
-                        "Mọi số tháng"
-                      ) : (
-                        <CellInput
-                          className={styles.cellInput}
-                          inputMode="numeric"
-                          maxLength={3}
-                          aria-label={`${name}: Số tháng`}
-                          error={errors.months}
-                          value={r.months}
-                          disabled={locked}
-                          onChange={(e) => setRate(r.id, { months: digitsOnly(e.target.value).slice(0, 3) })}
-                        />
-                      )}
-                    </td>
+                  <tr key={key}>
+                    <td>{KIND_LABEL[kind]}</td>
+                    <td>{PLAN_LABEL[plan]}</td>
                     <td>
                       <CellInput
                         className={styles.cellInput}
                         inputMode="decimal"
                         aria-label={`${name}: % nhận`}
-                        error={errors.receive}
-                        value={r.receive}
+                        error={percentError(rates[key].receive)}
+                        value={rates[key].receive}
                         disabled={locked}
-                        onChange={(e) => setRate(r.id, { receive: decimalOnly(e.target.value) })}
+                        onChange={(e) => setRate(key, { receive: decimalOnly(e.target.value) })}
                       />
                     </td>
                     <td>
@@ -299,24 +205,11 @@ function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
                         className={styles.cellInput}
                         inputMode="decimal"
                         aria-label={`${name}: % chi`}
-                        error={errors.pay}
-                        value={r.pay}
+                        error={percentError(rates[key].pay)}
+                        value={rates[key].pay}
                         disabled={locked}
-                        onChange={(e) => setRate(r.id, { pay: decimalOnly(e.target.value) })}
+                        onChange={(e) => setRate(key, { pay: decimalOnly(e.target.value) })}
                       />
-                    </td>
-                    <td>
-                      {!locked && !renewal && (
-                        <Button
-                          variant="secondary"
-                          icon
-                          tooltip="Xoá dòng"
-                          aria-label={`Xoá ${name.toLowerCase()}`}
-                          onClick={() => removeRate(r.id)}
-                        >
-                          <Trash2 size={16} aria-hidden />
-                        </Button>
-                      )}
                     </td>
                   </tr>
                 );
@@ -324,14 +217,6 @@ function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
             </tbody>
           </table>
         </div>
-        {!locked && (
-          <div ref={addRowRef} className={styles.addRow}>
-            <Button variant="secondary" onClick={addRate}>
-              <Plus size={16} aria-hidden />
-              Thêm dòng
-            </Button>
-          </div>
-        )}
       </SectionCard>
 
       <SectionCard title="Mức điểm KPI An Sinh" icon={<Target size={17} />}>
@@ -345,7 +230,7 @@ function SettingsForm({ data }: { data: SocialInsuranceSettings }) {
               </tr>
             </thead>
             <tbody>
-              {KPI_KEYS.map(({ kind, plan }) => {
+              {PLAN_KEYS.map(({ kind, plan }) => {
                 const key = `${kind}|${plan}`;
                 return (
                   <tr key={key}>

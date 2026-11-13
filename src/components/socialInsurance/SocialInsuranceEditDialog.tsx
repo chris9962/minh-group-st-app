@@ -14,6 +14,7 @@ import {
   KIND_LABEL,
   PLAN_LABEL,
   fetchSocialInsuranceOptions,
+  KEEP_ENTRY_STAFF_TEXT,
   RecordEditError,
   RecordEditForm,
   SocialInsurancePlan,
@@ -54,11 +55,11 @@ export function SocialInsuranceEditDialog({ open, record, onClose }: Props) {
     defaultValues: {
       receiptMonth: record.receiptMonth,
       plan: record.plan,
-      months: String(record.months),
+      months: record.months === null ? "" : String(record.months),
       collected: moneyInput(record.collectedCents),
       paid: moneyInput(record.paidCents),
       collaborator: record.collaboratorName ?? "",
-      entryStaffId: record.entryStaffId ?? "",
+      entryStaffId: record.entryStaffId ?? (record.entryStaffText ? KEEP_ENTRY_STAFF_TEXT : ""),
     },
   });
 
@@ -71,6 +72,9 @@ export function SocialInsuranceEditDialog({ open, record, onClose }: Props) {
   const atmStaff = options?.atmStaff ?? [];
   // Người đang giữ lượt có thể đã thôi Điểm ATM: vẫn hiện tên họ để ô không trống.
   const staffOptions = [
+    ...(record.entryStaffText && !record.entryStaffId
+      ? [{ value: KEEP_ENTRY_STAFF_TEXT, label: record.entryStaffText }]
+      : []),
     { value: "", label: "Không có" },
     ...(!record.entryStaffId || atmStaff.some((s) => s.id === record.entryStaffId)
       ? []

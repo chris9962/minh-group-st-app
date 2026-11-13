@@ -6,14 +6,12 @@ import { SocialInsuranceKind, SocialInsurancePlan } from './socialInsurance';
  * 2): % hoa hồng và mức điểm KPI An Sinh. % theo đơn vị 0,001% như `lib/money.ts`.
  */
 
-export const MAX_RATE_MONTHS = 120;
 export const MAX_REVENUE_PER_POINT = 2_000_000_000;
 
+/** Một mức cho mọi số tháng, ở cả Tăng mới và Tái tục (chốt 2026-11-13). */
 export const RateRow = z.object({
   kind: SocialInsuranceKind,
   plan: SocialInsurancePlan,
-  /** Tái tục luôn là 0: một mức cho mọi số tháng. */
-  months: z.number().int().min(0).max(MAX_RATE_MONTHS),
   receiveRate: z.number().int().min(0).max(100_000),
   payRate: z.number().int().min(0).max(100_000),
 });
@@ -40,7 +38,7 @@ export const SocialInsuranceSettings = z.object({
 export type SocialInsuranceSettings = z.infer<typeof SocialInsuranceSettings>;
 
 export const SocialInsuranceSettingsForm = z.object({
-  rates: z.array(RateRow).max(60),
+  rates: z.array(RateRow).max(4),
   kpi: z.array(KpiRateRow).max(4),
 });
 export type SocialInsuranceSettingsForm = z.infer<typeof SocialInsuranceSettingsForm>;

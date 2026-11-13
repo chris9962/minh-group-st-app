@@ -168,7 +168,8 @@ export type EntryInput = {
 export type Entry = {
   receiptMonth: string;
   plan: SocialInsurancePlan;
-  months: number;
+  /** `null` = để trống: luật 2026-11-13 không tính % theo số tháng. */
+  months: number | null;
   collectedCents: number;
   paidCents: number;
   /** `null` = không ghi người nhập liệu: dòng không sinh lượt dịch vụ. */
@@ -214,8 +215,9 @@ export function checkEntry(
   else partial.plan = plan;
 
   const months = input.months.trim();
-  if (!/^\d+$/.test(months) || Number(months) <= 0 || Number(months) > MAX_MONTHS)
-    fail("months", `Số tháng phải là số nguyên từ 1 tới ${MAX_MONTHS}`);
+  if (!months) partial.months = null;
+  else if (!/^\d+$/.test(months) || Number(months) <= 0 || Number(months) > MAX_MONTHS)
+    fail("months", `Số tháng phải để trống hoặc là số nguyên từ 1 tới ${MAX_MONTHS}`);
   else partial.months = Number(months);
 
   const collected = parseMoneyCents(input.collected);
@@ -230,14 +232,12 @@ export function checkEntry(
   // Cột NHẬP LIỆU trống hoặc mã không tra ra thì dòng vẫn ghi, chỉ không có người nhập liệu (chủ dự án chốt 2026-11-12).
   partial.staff = ctx.staffOf.get(input.staffCode.trim().toUpperCase()) ?? null;
 
-  if (partial.receiptMonth && partial.plan && partial.months && partial.collectedCents !== undefined) {
-    const rate = ctx.rateBooks
-      .get(partial.receiptMonth)
-      ?.get(ctx.kind, partial.plan, partial.months);
+  if (partial.receiptMonth && partial.plan && partial.collectedCents !== undefined) {
+    const rate = ctx.rateBooks.get(partial.receiptMonth)?.get(ctx.kind, partial.plan);
     if (!rate)
       fail(
-        "months",
-        `Chưa cấu hình % hoa hồng cho ${KIND_LABEL[ctx.kind]} ${PLAN_LABEL[partial.plan]} ${partial.months} tháng, tháng ${monthLabel(partial.receiptMonth)}`,
+        "plan",
+        `Chưa cấu hình % hoa hồng cho ${KIND_LABEL[ctx.kind]} ${PLAN_LABEL[partial.plan]}, tháng ${monthLabel(partial.receiptMonth)}`,
       );
     else if (partial.paidCents !== undefined) {
       const expected = applyRate(partial.collectedCents, rate.payRate);
@@ -254,7 +254,7 @@ export function checkEntry(
       ? {
           receiptMonth: partial.receiptMonth!,
           plan: partial.plan!,
-          months: partial.months!,
+          months: partial.months ?? null,
           collectedCents: partial.collectedCents!,
           paidCents: partial.paidCents!,
           staff: partial.staff,
@@ -368,19 +368,47 @@ function matchWard(
 type ParsedRecord = {
   row: number;
   fullName: string;
+  /** CCCD của khách, lấy từ dòng khác của file khi dòng này chỉ ghi mã. `""` = khách chỉ có mã số BHXH. */
   idNumber: string;
   address: string;
   ward: { id: string; name: string };
   socialInsuranceCode: string;
   entry: Entry;
+  /** Chữ ở cột NHẬP LIỆU khi không tra ra nhân viên ATM. */
+  entryStaffText: string | null;
   customerRootId: string | null;
+  /** Khoá gom các dòng của cùng một khách chưa có hồ sơ, để lượt ghi chỉ tạo một hồ sơ. */
+  customerKey: string;
 };
+
+type Identity = { idNumber: string; code: string; error: string | null };
+
+/**
+ * Cột CCCD/BHXH (chốt 2026-11-13): 11-12 số là CCCD, 9-10 số là mã số BHXH,
+ * cùng cách Excel bỏ số 0 đầu. File mẫu cũ có cột MÃ SỐ BHXH riêng: mã ở đó đi
+ * kèm CCCD, hoặc đứng một mình khi ô CCCD trống.
+ */
+function identityOf(input: RecordFileRow): Identity {
+  const raw = input.identity.replace(/\s/g, "");
+  const codeColumn = normalizeSocialCode(input.socialInsuranceCode);
+  if (/^\d{11,12}$/.test(raw)) return { idNumber: normalizeIdNumber(raw), code: codeColumn, error: null };
+  // Mẫu cũ: cột mã có giá trị thì ô này là CCCD, kể cả CCCD mã tỉnh 001-009 mà ô số bỏ mất hai số 0.
+  if (codeColumn && /^\d{10}$/.test(raw)) return { idNumber: `00${raw}`, code: codeColumn, error: null };
+  const code = raw ? (/^\d{9,10}$/.test(raw) ? normalizeSocialCode(raw) : "") : codeColumn;
+  if (/^\d{10}$/.test(code)) return { idNumber: "", code, error: null };
+  return {
+    idNumber: "",
+    code: "",
+    error: raw || codeColumn ? "CCCD phải đủ 12 số, mã số BHXH phải đủ 10 số" : "Thiếu CCCD hoặc mã số BHXH",
+  };
+}
 
 /**
  * Kiểm cả file 1. Không ghi gì.
  *
  * Mỗi khách mỗi loại mỗi tháng biên lai đúng một dòng, tính trên mọi lần mở hồ
- * sơ: hồ sơ gốc giữ CCCD duy nhất, nên tra theo hồ sơ gốc là đủ.
+ * sơ: hồ sơ gốc giữ CCCD và mã số BHXH, nên tra theo hồ sơ gốc là đủ. Dòng chỉ
+ * có mã số BHXH mà mã chưa thuộc khách nào thì tạo hồ sơ không có CCCD.
  */
 async function checkRecords(
   conn: Conn,
@@ -400,7 +428,12 @@ async function checkRecords(
     closedMonths: await closedMonthsOf(months, conn),
   };
 
-  const idNumbers = [...new Set(rows.map((r) => normalizeIdNumber(r.idNumber)).filter((v) => /^\d{12}$/.test(v)))];
+  const fileIdentities = rows.map(identityOf);
+  // Ô số bỏ cả hai số 0 đầu của CCCD mã tỉnh 001-009, còn 10 số như mã số BHXH.
+  const zeroLostIdNumber = (i: Identity) => (!i.idNumber && /^[1-9]\d{9}$/.test(i.code) ? `00${i.code}` : "");
+  const idNumbers = [
+    ...new Set(fileIdentities.flatMap((i) => [i.idNumber, zeroLostIdNumber(i)]).filter(Boolean)),
+  ];
   const roots = idNumbers.length
     ? await conn
         .select({
@@ -413,7 +446,7 @@ async function checkRecords(
     : [];
   const rootOf = new Map(roots.map((r) => [r.idNumber ?? "", r]));
 
-  const codes = [...new Set(rows.map((r) => normalizeSocialCode(r.socialInsuranceCode)).filter(Boolean))];
+  const codes = [...new Set(fileIdentities.map((i) => i.code).filter(Boolean))];
   const codeOwners = codes.length
     ? await conn
         .select({ id: customers.id, code: customers.socialInsuranceCode })
@@ -421,22 +454,25 @@ async function checkRecords(
         .where(and(inArray(customers.socialInsuranceCode, codes), sql`${customers.rootCustomerId} = ${customers.id}`))
     : [];
   const ownerOfCode = new Map(codeOwners.map((r) => [r.code ?? "", r.id]));
+  // 10 số mà không là mã của ai, còn thêm "00" thì ra CCCD đã có hồ sơ: đọc là CCCD đó, không tạo khách trùng.
+  const identities = fileIdentities.map((i) => {
+    const idNumber = zeroLostIdNumber(i);
+    return idNumber && rootOf.has(idNumber) && !ownerOfCode.has(i.code) ? { ...i, idNumber, code: "" } : i;
+  });
 
-  const taken = roots.length
+  const rootIds = [...new Set([...roots.map((r) => r.id), ...codeOwners.map((r) => r.id)])];
+  const taken = rootIds.length
     ? await conn
         .select({ customerId: socialInsuranceRecords.customerId, month: socialInsuranceRecords.receiptMonth })
         .from(socialInsuranceRecords)
-        .where(
-          and(
-            eq(socialInsuranceRecords.kind, kind),
-            inArray(
-              socialInsuranceRecords.customerId,
-              roots.map((r) => r.id),
-            ),
-          ),
-        )
+        .where(and(eq(socialInsuranceRecords.kind, kind), inArray(socialInsuranceRecords.customerId, rootIds)))
     : [];
   const takenKeys = new Set(taken.map((t) => `${t.customerId}|${t.month}`));
+
+  // Mã số BHXH đi kèm CCCD ở dòng khác của file: dòng chỉ ghi mã đó là cùng khách, dù đứng trước hay sau.
+  const idNumberOfCodeInFile = new Map<string, string>();
+  for (const i of identities)
+    if (i.idNumber && i.code && !idNumberOfCodeInFile.has(i.code)) idNumberOfCodeInFile.set(i.code, i.idNumber);
 
   const firstRowOf = new Map<string, number>();
   const codeInFile = new Map<string, string>();
@@ -444,28 +480,31 @@ async function checkRecords(
   const preview: RecordPreviewRow[] = [];
   const parsed: ParsedRecord[] = [];
 
-  for (const input of rows) {
+  for (const [index, input] of rows.entries()) {
     const { errors, partial, entry } = checkEntry(input, ctx);
-    const staffCode = input.staffCode.trim().toUpperCase();
+    const staffText = input.staffCode.replace(/\s+/g, " ").trim();
 
     const fullName = input.fullName.replace(/\s+/g, " ").trim();
     if (!fullName) errors.unshift("Thiếu họ tên");
     else if (!personNameHasLetter(fullName)) errors.unshift(PERSON_NAME_LETTER_ERROR);
 
-    const idNumber = normalizeIdNumber(input.idNumber);
-    if (!idNumber) errors.push("Thiếu CCCD");
-    else if (!/^\d{12}$/.test(idNumber)) errors.push("CCCD phải đủ 12 số");
+    const { idNumber, code, error: identityError } = identities[index];
+    if (identityError) errors.push(identityError);
 
     const place = matchWard(input.address, wardBook);
     if (typeof place === "string") errors.push(place);
 
-    const code = normalizeSocialCode(input.socialInsuranceCode);
-    const root = rootOf.get(idNumber) ?? null;
     const codeOwner = code ? ownerOfCode.get(code) : undefined;
+    const fileIdNumber = idNumber || idNumberOfCodeInFile.get(code) || "";
+    const root = fileIdNumber
+      ? (rootOf.get(fileIdNumber) ?? null)
+      : codeOwner
+        ? { id: codeOwner, idNumber: null, socialInsuranceCode: code }
+        : null;
     if (code && root?.socialInsuranceCode && root.socialInsuranceCode !== code)
       errors.push(`Mã số BHXH khác mã đã lưu ở hồ sơ khách (${root.socialInsuranceCode})`);
     else if (codeOwner && codeOwner !== root?.id) errors.push(`Mã số BHXH ${code} đã thuộc khách khác`);
-    if (code && /^\d{12}$/.test(idNumber)) {
+    if (code && idNumber) {
       const earlier = codeInFile.get(idNumber);
       const otherIdNumber = idNumberOfCode.get(code);
       if (earlier && earlier !== code) errors.push(`Mã số BHXH khác dòng trên của cùng khách (${earlier})`);
@@ -477,8 +516,15 @@ async function checkRecords(
       }
     }
 
-    if (partial.receiptMonth && /^\d{12}$/.test(idNumber)) {
-      const key = `${idNumber}|${partial.receiptMonth}`;
+    const customerKey = root
+      ? `root:${root.id}`
+      : fileIdNumber
+        ? `id:${fileIdNumber}`
+        : code
+          ? `code:${code}`
+          : "";
+    if (partial.receiptMonth && customerKey) {
+      const key = `${customerKey}|${partial.receiptMonth}`;
       const earlier = firstRowOf.get(key);
       if (earlier !== undefined)
         errors.push(`Trùng dòng ${earlier}: cùng khách, cùng tháng biên lai`);
@@ -490,32 +536,34 @@ async function checkRecords(
     preview.push({
       row: input.row,
       fullName,
-      idNumberTail: /^\d{12}$/.test(idNumber) ? tail(idNumber) : "",
+      identity: idNumber ? `…${tail(idNumber)}` : code,
       receiptMonth: partial.receiptMonth ?? "",
-      customer: /^\d{12}$/.test(idNumber) ? (root ? "existing" : "new") : null,
+      customer: customerKey ? (root ? "existing" : "new") : null,
       wardName: typeof place === "string" ? "" : place.ward.name,
-      staffName: partial.staff?.fullName ?? "",
+      staffName: partial.staff?.fullName ?? staffText,
       plan: partial.plan ?? null,
       months: partial.months ?? null,
       collectedCents: partial.collectedCents ?? null,
       paidCents: partial.paidCents ?? null,
       errors,
-      // Mã gõ sai thì nhân viên ATM mất lượt mà không ai thấy, nên báo ở bảng kiểm.
+      // Chữ không tra ra thì nhân viên ATM mất lượt mà không ai thấy, nên báo ở bảng kiểm.
       differences:
-        staffCode && !partial.staff
-          ? [`Mã ${staffCode} không phải nhân viên Điểm ATM đang hoạt động, dòng không ghi nhân viên ATM`]
+        staffText && !partial.staff
+          ? [`"${staffText}" không phải mã nhân viên Điểm ATM đang hoạt động: dòng chỉ lưu chữ này, không tính lượt nhập liệu`]
           : [],
     });
     if (errors.length === 0 && entry && typeof place !== "string")
       parsed.push({
         row: input.row,
         fullName: capitalizePersonName(fullName),
-        idNumber,
+        idNumber: fileIdNumber,
         address: place.address,
         ward: place.ward,
         socialInsuranceCode: code,
         entry,
+        entryStaffText: partial.staff ? null : staffText || null,
         customerRootId: root?.id ?? null,
+        customerKey,
       });
   }
 
@@ -585,7 +633,7 @@ export async function importRecords(
     for (const p of parsed) {
       const staff = p.entry.staff;
       const creator = staff ?? { id: actor.id, departmentId: actor.departmentId };
-      let rootId = p.customerRootId ?? createdRoot.get(p.idNumber) ?? null;
+      let rootId = p.customerRootId ?? createdRoot.get(p.customerKey) ?? null;
       if (!rootId) {
         rootId = crypto.randomUUID();
         await tx.insert(customers).values({
@@ -594,7 +642,7 @@ export async function importRecords(
           seq: 1,
           fullName: p.fullName,
           dob: null,
-          idNumber: p.idNumber,
+          idNumber: p.idNumber || null,
           address: p.address,
           channelId: channel?.id ?? null,
           channelDetail: "",
@@ -602,7 +650,7 @@ export async function importRecords(
           createdBy: creator.id,
           createdByDepartmentId: creator.departmentId,
         });
-        createdRoot.set(p.idNumber, rootId);
+        createdRoot.set(p.customerKey, rootId);
         if (p.socialInsuranceCode) codedRoots.add(rootId);
       } else if (p.socialInsuranceCode && !codedRoots.has(rootId)) {
         // Mã số BHXH là của người, nên chép sang MỌI lần mở hồ sơ của khách.
@@ -639,6 +687,7 @@ export async function importRecords(
         collaboratorId: p.entry.collaborator ? (collaboratorOf.get(p.entry.collaborator) ?? null) : null,
         serviceId: service?.id ?? null,
         entryStaffId: staff?.id ?? null,
+        entryStaffText: p.entryStaffText,
         uploadedBy: actor.id,
         uploadedByDepartmentId: actor.departmentId,
       });
@@ -662,7 +711,7 @@ export async function importRecords(
 type ReconcileMatch = { recordId: string; values: ReconcileValues };
 type ReconcileValues = {
   plan: SocialInsurancePlan;
-  months: number;
+  months: number | null;
   collectedCents: number;
   receivedCents: number;
   receivedRate: number;
@@ -741,7 +790,8 @@ async function checkReconciliation(
       /^\d+$/.test(monthsText) && Number(monthsText) > 0 && Number(monthsText) <= MAX_MONTHS
         ? Number(monthsText)
         : null;
-    if (monthCount === null) errors.push(`Số tháng phải là số nguyên từ 1 tới ${MAX_MONTHS}`);
+    if (monthsText && monthCount === null)
+      errors.push(`Số tháng phải để trống hoặc là số nguyên từ 1 tới ${MAX_MONTHS}`);
     const collected = parseMoneyCents(input.collected);
     const collectedCents = typeof collected === "number" && collected > 0 ? collected : null;
     if (collectedCents === null) errors.push("Số tiền thu phải là số lớn hơn 0");
@@ -764,11 +814,11 @@ async function checkReconciliation(
       else firstRowOf.set(record.id, input.row);
     }
 
-    if (receiptMonth && plan && monthCount !== null && collectedCents !== null) {
-      const rate = rateBooks.get(receiptMonth)?.get(kind, plan, monthCount);
+    if (receiptMonth && plan && collectedCents !== null) {
+      const rate = rateBooks.get(receiptMonth)?.get(kind, plan);
       if (!rate)
         errors.push(
-          `Chưa cấu hình % hoa hồng cho ${KIND_LABEL[kind]} ${PLAN_LABEL[plan]} ${monthCount} tháng, tháng ${monthLabel(receiptMonth)}`,
+          `Chưa cấu hình % hoa hồng cho ${KIND_LABEL[kind]} ${PLAN_LABEL[plan]}, tháng ${monthLabel(receiptMonth)}`,
         );
       else {
         if (receivedRate !== null && receivedRate !== rate.receiveRate)
@@ -781,15 +831,15 @@ async function checkReconciliation(
       }
     }
 
-    if (record && plan && monthCount !== null && collectedCents !== null) {
+    if (record && plan && collectedCents !== null) {
       if (record.plan !== plan)
         differences.push(`Phương án: hồ sơ ghi ${PLAN_LABEL[record.plan]}, đối chiếu ghi ${PLAN_LABEL[plan]}`);
-      if (record.months !== monthCount)
+      if (record.months !== null && monthCount !== null && record.months !== monthCount)
         differences.push(`Số tháng: hồ sơ ghi ${record.months}, đối chiếu ghi ${monthCount}`);
       const recordCents = centsFromDecimal(record.collectedAmount);
       if (recordCents !== collectedCents)
         differences.push(`Tiền thu: hồ sơ ghi ${formatCents(recordCents)}, đối chiếu ghi ${formatCents(collectedCents)}`);
-      const payRate = receiptMonth ? rateBooks.get(receiptMonth)?.get(kind, plan, monthCount)?.payRate : undefined;
+      const payRate = receiptMonth ? rateBooks.get(receiptMonth)?.get(kind, plan)?.payRate : undefined;
       const recordPaid = centsFromDecimal(record.paidAmount);
       if (payRate !== undefined && applyRate(collectedCents, payRate) !== recordPaid)
         differences.push(
@@ -810,7 +860,7 @@ async function checkReconciliation(
       errors,
       differences,
     });
-    if (errors.length === 0 && record && plan && monthCount !== null && collectedCents !== null && receivedCents !== null && receivedRate !== null)
+    if (errors.length === 0 && record && plan && collectedCents !== null && receivedCents !== null && receivedRate !== null)
       matches.push({
         recordId: record.id,
         values: { plan, months: monthCount, collectedCents, receivedCents, receivedRate },

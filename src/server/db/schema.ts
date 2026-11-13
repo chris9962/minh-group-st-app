@@ -2389,7 +2389,8 @@ export const collaborators = pgTable("collaborators", {
 
 /**
  * % hoa hồng theo tháng. % lưu số nguyên đơn vị 0,001% (9,120% = 9120), để phép
- * nhân với tiền không đi qua số thực. Tái tục dùng `months = 0` cho mọi số tháng.
+ * nhân với tiền không đi qua số thực. Từ luật 2026-11-13, cả Tăng mới và Tái tục
+ * có một mức cho mọi số tháng, lưu ở `months = 0`; app bỏ qua dòng `months > 0`.
  * Tháng không có dòng nào thì dùng bộ của tháng gần nhất trước đó.
  */
 export const socialInsuranceRates = pgTable(
@@ -2451,7 +2452,8 @@ export const socialInsuranceRecords = pgTable(
     /** `YYYY-MM` của NGÀY BIÊN LAI. */
     receiptMonth: text("receipt_month").notNull(),
     plan: socialInsurancePlan("plan").notNull(),
-    months: integer("months").notNull(),
+    /** `null` = file để trống cột SỐ THÁNG (migration 0169). */
+    months: integer("months"),
     collectedAmount: numeric("collected_amount", { precision: 14, scale: 2 }).notNull(),
     paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).notNull(),
     collaboratorId: uuid("collaborator_id").references(() => collaborators.id),
@@ -2461,6 +2463,8 @@ export const socialInsuranceRecords = pgTable(
       .references(() => services.id),
     /** Nhân viên ATM ở cột NHẬP LIỆU, trùng `services.created_by` của lượt. `null` = cột trống hoặc mã không tra ra. */
     entryStaffId: uuid("entry_staff_id").references(() => users.id),
+    /** Chữ ở cột NHẬP LIỆU khi không tra ra nhân viên ATM (migration 0169). Chỉ để xem, không tính lượt. */
+    entryStaffText: text("entry_staff_text"),
     uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
     uploadedByDepartmentId: uuid("uploaded_by_department_id").references(() => departments.id),
     createdAt: createdAt(),

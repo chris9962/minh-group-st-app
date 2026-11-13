@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, ne, sql, type SQL, type SQLWrapper } from "d
 import { alias } from "drizzle-orm/pg-core";
 import {
   DATA_ENTRY_TYPE_NAME,
+  KEEP_ENTRY_STAFF_TEXT,
   KIND_LABEL,
   ReconcileStatus,
   SocialInsuranceKind,
@@ -94,7 +95,8 @@ function searchWhere(raw: string): SQL | undefined {
   );
 }
 
-const mismatchSql = sql`(${r.reconciledPlan} <> ${r.plan} or ${r.reconciledMonths} <> ${r.months} or ${r.reconciledCollectedAmount} <> ${r.collectedAmount})`;
+// Một bên để trống số tháng thì không so: `<>` với NULL ra NULL, mà `not NULL` làm dòng rơi khỏi cả hai bộ lọc.
+const mismatchSql = sql`(${r.reconciledPlan} <> ${r.plan} or coalesce(${r.reconciledMonths} <> ${r.months}, false) or ${r.reconciledCollectedAmount} <> ${r.collectedAmount})`;
 
 const statusWhere = (status: SocialInsuranceFilters["status"]): SQL | undefined => {
   if (status === "pending") return sql`${r.reconciledAt} is null`;
@@ -138,6 +140,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       collaboratorId: r.collaboratorId,
       serviceId: r.serviceId,
       entryStaffId: r.entryStaffId,
+      entryStaffText: r.entryStaffText,
       uploadedBy: r.uploadedBy,
       uploadedByDepartmentId: r.uploadedByDepartmentId,
       createdAt: r.createdAt,
@@ -167,6 +170,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       collectedAmount: page.collectedAmount,
       paidAmount: page.paidAmount,
       entryStaffId: page.entryStaffId,
+      entryStaffText: page.entryStaffText,
       uploadedBy: page.uploadedBy,
       uploadedByDepartmentId: page.uploadedByDepartmentId,
       createdAt: page.createdAt,
@@ -234,6 +238,7 @@ const toRow = (d: Decorated): SocialInsuranceRow => {
     entryStaffName: d.entryStaffName,
     entryStaffCode: d.entryStaffCode,
     entryStaffDepartmentName: d.entryStaffDepartmentName,
+    entryStaffText: d.entryStaffText,
     createdById: d.uploadedBy,
     createdByName: d.uploaderName,
     createdByCode: d.uploaderCode,
@@ -243,7 +248,6 @@ const toRow = (d: Decorated): SocialInsuranceRow => {
     reconciliation:
       d.reconciledAt &&
       d.reconciledPlan &&
-      d.reconciledMonths !== null &&
       d.reconciledCollectedAmount !== null &&
       d.receivedAmount !== null &&
       d.receivedRate !== null
@@ -271,7 +275,7 @@ async function withReconciledPaid<T extends SocialInsuranceRow>(rows: T[]): Prom
   const books = await rateBooksFor(reconciled.map((row) => row.receiptMonth));
   for (const row of reconciled) {
     const rec = row.reconciliation!;
-    const rate = books.get(row.receiptMonth)?.get(row.kind, rec.plan, rec.months);
+    const rate = books.get(row.receiptMonth)?.get(row.kind, rec.plan);
     rec.paidCents = rate ? applyRate(rec.collectedCents, rate.payRate) : null;
   }
   return rows;
@@ -460,8 +464,9 @@ export async function updateSocialInsurance(
     const current = await lockedRecord(tx, id);
     if (!current || !recordInScope(scopeOf(actor, "update"), current)) return null;
 
+    const keepStaffText = form.entryStaffId === KEEP_ENTRY_STAFF_TEXT;
     const staff = isUuid(form.entryStaffId) ? await atmStaffById(form.entryStaffId, tx) : null;
-    if (form.entryStaffId && !staff)
+    if (form.entryStaffId && !keepStaffText && !staff)
       return { ok: false, message: STAFF_MISSING, fieldErrors: { entryStaffId: STAFF_MISSING } };
 
     const serviceDate = current.serviceDate ?? businessDay(current.createdAt);
@@ -540,6 +545,7 @@ export async function updateSocialInsurance(
         paidAmount: decimalFromCents(entry.paidCents),
         collaboratorId: entry.collaborator ? (collaboratorOf.get(entry.collaborator) ?? null) : null,
         entryStaffId: staff?.id ?? null,
+        ...(keepStaffText ? {} : { entryStaffText: null }),
         serviceId,
         updatedAt: new Date(),
       })

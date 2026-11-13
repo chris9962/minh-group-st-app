@@ -3,13 +3,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 /**
- * Bộ % hoa hồng BHYT/BHXH và mức điểm KPI An Sinh tháng 2026-10, theo bảng chủ
- * dự án gửi 2026-10-04 (spec docs/spec-bhyt-bhxh-an-sinh.md mục 2). Là script chứ không nằm trong
+ * Bộ % hoa hồng BHYT/BHXH và mức điểm KPI An Sinh tháng 2026-10. Mức điểm theo
+ * bảng chủ dự án gửi 2026-10-04 (spec docs/spec-bhyt-bhxh-an-sinh.md mục 2), %
+ * hoa hồng theo luật gửi 2026-11-13, áp dụng từ đầu. Là script chứ không nằm trong
  * migration: mức % là dữ liệu của công ty và đổi theo tháng. Đổi về sau ở trang
  * cấu hình.
  *
- * % ghi theo đơn vị 0,001%: 7,350% là 7350. Tái tục lưu `months = 0`, dùng cho
- * mọi số tháng.
+ * % ghi theo đơn vị 0,001%: 9,000% là 9000. Mỗi gói một mức cho mọi số tháng,
+ * lưu ở `months = 0`.
  *
  * Chạy khô, in những gì sẽ ghi:
  *   bun run db:seed-social-insurance
@@ -23,15 +24,10 @@ import { Pool } from "pg";
 const MONTH = "2026-10";
 
 const RATES: [kind: "bhyt" | "bhxh", plan: "new" | "renewal", months: number, receive: number, pay: number][] = [
-  ["bhyt", "new", 3, 7350, 5880],
-  ["bhyt", "new", 6, 8820, 7056],
-  ["bhyt", "new", 12, 9800, 7840],
-  ["bhyt", "renewal", 0, 4200, 3360],
-  ["bhxh", "new", 1, 11400, 9120],
-  ["bhxh", "new", 3, 14300, 11440],
-  ["bhxh", "new", 6, 17100, 13680],
-  ["bhxh", "new", 12, 19000, 15200],
-  ["bhxh", "renewal", 0, 8000, 6400],
+  ["bhyt", "new", 0, 9000, 7200],
+  ["bhyt", "renewal", 0, 3500, 2800],
+  ["bhxh", "new", 0, 17000, 13600],
+  ["bhxh", "renewal", 0, 6000, 4800],
 ];
 
 /** Mức điểm KPI An Sinh (spec mục 2.2): doanh thu bao nhiêu đồng được 1 điểm. */
@@ -73,9 +69,9 @@ async function main() {
   console.log(
     `${toAdd.length} dòng %, ${kpiToAdd.length} mức điểm sắp ghi cho tháng ${MONTH}${apply ? "" : " (CHẠY KHÔ — thêm --apply để ghi)"}:`,
   );
-  for (const [kind, plan, months, receive, pay] of toAdd)
+  for (const [kind, plan, , receive, pay] of toAdd)
     console.log(
-      `  ${kind.toUpperCase()} ${plan === "new" ? `tăng mới ${months} tháng` : "tái tục"}: nhận ${receive / 1000}%, chi ${pay / 1000}%`,
+      `  ${kind.toUpperCase()} ${plan === "new" ? "tăng mới" : "tái tục"}: nhận ${receive / 1000}%, chi ${pay / 1000}%`,
     );
   for (const [kind, plan, revenue] of kpiToAdd)
     console.log(`  KPI ${kind.toUpperCase()} ${plan === "new" ? "tăng mới" : "tái tục"}: ${revenue}đ = 1 điểm`);

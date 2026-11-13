@@ -4,16 +4,14 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileSpreadsheet, FileCheck2, HeartHandshake, Pencil, Sigma, Trash2, Upload } from "lucide-react";
+import { Download, FileDown, FileSpreadsheet, FileCheck2, HeartHandshake, Pencil, Sigma, Trash2 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import {
   SocialInsuranceImportDialog,
   type ImportMode,
 } from "@/components/socialInsurance/SocialInsuranceImportDialog";
 import { SocialInsuranceEditDialog } from "@/components/socialInsurance/SocialInsuranceEditDialog";
-import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Button } from "@/components/ui/Button";
-import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
@@ -22,6 +20,7 @@ import { FilterChips } from "@/components/ui/FilterChips";
 import { FilterChoices } from "@/components/ui/FilterChoices";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterField } from "@/components/ui/FilterField";
+import { MoreActionsMenu } from "@/components/ui/MoreActionsMenu";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
@@ -38,7 +37,9 @@ import {
   fetchSocialInsuranceOptions,
   KIND_LABEL,
   PLAN_LABEL,
+  RECONCILE_FILE_COLUMNS,
   RECONCILE_STATUS_LABEL,
+  RECORD_FILE_COLUMNS,
   ReconcileStatus,
   SocialInsuranceKind,
   SocialInsurancePlan,
@@ -119,6 +120,32 @@ const sumCents = (rows: SocialInsuranceExportRow[], pick: (r: SocialInsuranceExp
   money(rows.reduce((s, r) => s + pick(r), 0));
 
 /** Cột chọn được ở hộp thoại Xuất Excel. Ô file hồ sơ lệch file đối chiếu được tô, cột GHI CHÚ nói lệch gì. */
+const TEXT_TEMPLATE_KEYS = new Set(["receiptDate", "identity", "staffCode"]);
+const WIDE_TEMPLATE_KEYS = new Set(["fullName", "address", "collaborator"]);
+
+// Tên cột lấy từ đúng bảng cột app đọc; cột MÃ SỐ BHXH chỉ còn để đọc file mẫu cũ nên bỏ.
+const templateColumns = (spec: Record<string, { headers: string[] }>): ExcelColumn<never>[] =>
+  Object.entries(spec)
+    .filter(([key]) => key !== "socialInsuranceCode")
+    .map(([key, column]) => ({
+      header: column.headers[0],
+      width: WIDE_TEMPLATE_KEYS.has(key) ? 28 : 16,
+      type: TEXT_TEMPLATE_KEYS.has(key) ? "text" : undefined,
+      value: () => "",
+    }));
+
+const TEMPLATES: Record<ImportMode, { fileName: string; sheetName: string; columns: ExcelColumn<never>[] }> = {
+  records: { fileName: "mau-file-ho-so-bhyt-bhxh.xlsx", sheetName: "Hồ sơ", columns: templateColumns(RECORD_FILE_COLUMNS) },
+  reconcile: {
+    fileName: "mau-file-doi-chieu-bhyt-bhxh.xlsx",
+    sheetName: "Đối chiếu",
+    columns: templateColumns(RECONCILE_FILE_COLUMNS),
+  },
+};
+
+const downloadTemplate = (mode: ImportMode) =>
+  exportExcel({ ...TEMPLATES[mode], rows: [] }).catch((e) => toast.fail(errorMessage(e, "Không tải được file mẫu")));
+
 const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
   { key: "createdAt", label: "Ngày giờ", ...KHACH, width: 17, value: (r) => formatDateTime(r.createdAt) },
   { key: "receiptMonth", label: "Tháng biên lai", ...KHACH, width: 12, type: "text", value: (r) => monthText(r.receiptMonth) },
@@ -140,7 +167,7 @@ const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
     ...HO_SO,
     width: 9,
     type: "number",
-    value: (r) => r.months,
+    value: (r) => r.months ?? "",
     highlight: (r) => differencesOf(r).includes("months"),
   },
   {
@@ -187,7 +214,7 @@ const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
   },
   { key: "receivedRate", label: "% HH nhận", ...DOI_CHIEU, width: 9, value: (r) => (r.reconciliation ? formatRate(r.reconciliation.receivedRate) : "") },
   { key: "entryStaffCode", label: "Mã nhân viên ATM", ...NHAN_SU, width: 15, type: "text", value: (r) => r.entryStaffCode ?? "" },
-  { key: "entryStaffName", label: "Nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffName ?? "" },
+  { key: "entryStaffName", label: "Nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffName ?? r.entryStaffText ?? "" },
   { key: "entryStaffDepartment", label: "Phòng nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffDepartmentName ?? "" },
   { key: "entryStaffTitle", label: "Chức vụ nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffTitle ?? "" },
   { key: "createdByCode", label: "Mã nhân viên AS", ...NHAN_SU, width: 15, type: "text", value: (r) => r.createdByCode ?? "" },
@@ -232,6 +259,8 @@ export default function SocialInsuranceScreen() {
 
   const query: SocialInsuranceFilters = { search: searchQuery, ...filters };
   const canFilterByUploader = scopeFor(user, "social-insurance", "view-detail") !== "own";
+  const canExport = can(user, "social-insurance", "export");
+  const canImport = can(user, "social-insurance", "create");
 
   const { data: options } = useQuery({
     queryKey: ["social-insurance", "options"],
@@ -336,7 +365,7 @@ export default function SocialInsuranceScreen() {
       label: "Số tháng",
       render: (r) => (
         <Cell
-          value={String(r.months)}
+          value={r.months === null ? "—" : String(r.months)}
           reconciled={String(r.reconciliation?.months ?? "")}
           mismatch={differencesOf(r).includes("months")}
         />
@@ -377,7 +406,7 @@ export default function SocialInsuranceScreen() {
             {r.entryStaffName}
           </Link>
         ) : (
-          "—"
+          r.entryStaffText || "—"
         ),
     },
     {
@@ -564,32 +593,43 @@ export default function SocialInsuranceScreen() {
             />
           </FilterField>
         </FilterButton>
-        {can(user, "social-insurance", "export") && (
-          <Button
-            variant="secondary"
-            aria-label="Xuất Excel"
-            disabled={exporting}
-            onClick={() => setChoosingColumns(true)}
-          >
-            <Download size={16} aria-hidden />
-            <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
-          </Button>
-        )}
-        {can(user, "social-insurance", "create") && (
-          <ActionMenu
-            label="Nhập file"
-            icon={<Upload size={16} aria-hidden />}
+        {(canExport || canImport) && (
+          <MoreActionsMenu
+            label="File Excel"
             items={[
-              {
-                label: "Nhập file hồ sơ",
-                icon: <FileSpreadsheet size={16} aria-hidden />,
-                onSelect: () => setImporting("records"),
-              },
-              {
-                label: "Nhập file đối chiếu",
-                icon: <FileCheck2 size={16} aria-hidden />,
-                onSelect: () => setImporting("reconcile"),
-              },
+              ...(canExport
+                ? [
+                    {
+                      label: exporting ? "Đang xuất…" : "Xuất Excel",
+                      icon: <Download size={16} aria-hidden />,
+                      onSelect: () => setChoosingColumns(true),
+                    },
+                  ]
+                : []),
+              ...(canImport
+                ? [
+                    {
+                      label: "Nhập file hồ sơ",
+                      icon: <FileSpreadsheet size={16} aria-hidden />,
+                      onSelect: () => setImporting("records"),
+                    },
+                    {
+                      label: "Nhập file đối chiếu",
+                      icon: <FileCheck2 size={16} aria-hidden />,
+                      onSelect: () => setImporting("reconcile"),
+                    },
+                    {
+                      label: "Tải mẫu file hồ sơ",
+                      icon: <FileDown size={16} aria-hidden />,
+                      onSelect: () => downloadTemplate("records"),
+                    },
+                    {
+                      label: "Tải mẫu file đối chiếu",
+                      icon: <FileDown size={16} aria-hidden />,
+                      onSelect: () => downloadTemplate("reconcile"),
+                    },
+                  ]
+                : []),
             ]}
           />
         )}

@@ -1,4 +1,4 @@
-import { asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import {
   KIND_LABEL,
   PLAN_LABEL,
@@ -6,7 +6,6 @@ import {
   SocialInsurancePlan,
 } from "@/lib/api/socialInsurance";
 import {
-  MAX_RATE_MONTHS,
   type SocialInsuranceSettings,
   type SocialInsuranceSettingsForm,
 } from "@/lib/api/socialInsuranceSettings";
@@ -45,13 +44,12 @@ export async function getSocialInsuranceSettings(month: string): Promise<SocialI
           .select({
             kind: socialInsuranceRates.kind,
             plan: socialInsuranceRates.plan,
-            months: socialInsuranceRates.months,
             receiveRate: socialInsuranceRates.receiveRate,
             payRate: socialInsuranceRates.payRate,
           })
           .from(socialInsuranceRates)
-          .where(eq(socialInsuranceRates.yearMonth, ratesMonth))
-          .orderBy(asc(socialInsuranceRates.kind), asc(socialInsuranceRates.plan), asc(socialInsuranceRates.months))
+          .where(and(eq(socialInsuranceRates.yearMonth, ratesMonth), eq(socialInsuranceRates.months, 0)))
+          .orderBy(asc(socialInsuranceRates.kind), asc(socialInsuranceRates.plan))
       : [],
     kpiMonth
       ? db
@@ -76,19 +74,15 @@ export async function getSocialInsuranceSettings(month: string): Promise<SocialI
 
 /** Lỗi đầu tiên của bộ số gửi lên, hoặc `null`. */
 function invalidReason(form: SocialInsuranceSettingsForm): string | null {
-  if (form.rates.length === 0) return "Chưa có dòng % hoa hồng.";
   const seen = new Set<string>();
   for (const r of form.rates) {
-    const label = `${KIND_LABEL[r.kind]} ${PLAN_LABEL[r.plan]}`;
-    if (r.plan === "renewal" && r.months !== 0) return `${label} dùng một mức cho mọi số tháng.`;
-    if (r.plan === "new" && (r.months < 1 || r.months > MAX_RATE_MONTHS))
-      return `${label}: số tháng từ 1 đến ${MAX_RATE_MONTHS}.`;
-    const key = `${r.kind}|${r.plan}|${r.months}`;
-    if (seen.has(key)) return `${label}${r.months ? ` ${r.months} tháng` : ""} bị lặp.`;
+    const key = `${r.kind}|${r.plan}`;
+    if (seen.has(key)) return `% hoa hồng ${KIND_LABEL[r.kind]} ${PLAN_LABEL[r.plan]} bị lặp.`;
     seen.add(key);
   }
   for (const kind of SocialInsuranceKind.options)
-    if (!seen.has(`${kind}|renewal|0`)) return `Thiếu dòng ${KIND_LABEL[kind]} ${PLAN_LABEL.renewal}.`;
+    for (const plan of SocialInsurancePlan.options)
+      if (!seen.has(`${kind}|${plan}`)) return `Thiếu % hoa hồng ${KIND_LABEL[kind]} ${PLAN_LABEL[plan]}.`;
   const seenKpi = new Set<string>();
   for (const k of form.kpi) {
     const label = `${KIND_LABEL[k.kind]} ${PLAN_LABEL[k.plan]}`;
@@ -124,7 +118,7 @@ export async function saveSocialInsuranceSettings(
     if (form.rates.length > 0)
       await tx
         .insert(socialInsuranceRates)
-        .values(form.rates.map((r) => ({ ...r, yearMonth: month, updatedBy: actorId })));
+        .values(form.rates.map((r) => ({ ...r, months: 0, yearMonth: month, updatedBy: actorId })));
     if (form.kpi.length > 0)
       await tx
         .insert(socialInsuranceKpiRates)

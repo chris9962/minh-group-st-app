@@ -81,7 +81,7 @@ const recordColumns: RankColumn<RecordPreviewRow>[] = [
   { key: "row", label: "Dòng", render: (r) => r.row },
   { key: "receiptMonth", label: "Tháng biên lai", render: (r) => monthText(r.receiptMonth) },
   { key: "fullName", label: "Họ tên", render: (r) => r.fullName || "—" },
-  { key: "idNumber", label: "CCCD", render: (r) => (r.idNumberTail ? `…${r.idNumberTail}` : "—") },
+  { key: "identity", label: "CCCD/BHXH", render: (r) => r.identity || "—" },
   {
     key: "customer",
     label: "Khách",

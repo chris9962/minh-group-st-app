@@ -37,11 +37,13 @@ export const DATA_ENTRY_TYPE_NAMES: readonly string[] = Object.values(DATA_ENTRY
 export const RECORD_FILE_COLUMNS = {
   receiptDate: { headers: ['NGÀY BIÊN LAI'], required: true },
   fullName: { headers: ['HỌ VÀ TÊN', 'HỌ TÊN'], required: true, anchor: true, endsAtTotal: true },
-  idNumber: { headers: ['CCCD'], required: true, anchor: true },
+  /** Một cột ghi CCCD hoặc mã số BHXH (chốt 2026-11-13). File mẫu cũ có cột CCCD riêng vẫn đọc được. */
+  identity: { headers: ['CCCD/BHXH', 'CCCD'], required: true, anchor: true },
   address: { headers: ['ĐỊA CHỈ'], required: true },
-  socialInsuranceCode: { headers: ['MÃ SỐ BHXH', 'MÃ BHXH'], required: true },
+  /** Cột riêng của file mẫu cũ. */
+  socialInsuranceCode: { headers: ['MÃ SỐ BHXH', 'MÃ BHXH'], required: false },
   plan: { headers: ['PHƯƠNG ÁN'], required: true },
-  months: { headers: ['SỐ THÁNG'], required: true },
+  months: { headers: ['SỐ THÁNG'], required: false },
   collected: { headers: ['SỐ TIỀN THU'], required: true },
   paid: { headers: ['SỐ TIỀN CHI'], required: true },
   staffCode: { headers: ['NHẬP LIỆU'], required: false },
@@ -53,7 +55,7 @@ export const RECONCILE_FILE_COLUMNS = {
   fullName: { headers: ['HỌ VÀ TÊN', 'HỌ TÊN'], required: false, anchor: true, endsAtTotal: true },
   identity: { headers: ['CCCD/BHXH', 'CCCD', 'MÃ SỐ BHXH'], required: true, anchor: true },
   plan: { headers: ['PHƯƠNG ÁN'], required: true },
-  months: { headers: ['SỐ THÁNG'], required: true },
+  months: { headers: ['SỐ THÁNG'], required: false },
   collected: { headers: ['SỐ TIỀN THU'], required: true },
   received: { headers: ['SỐ TIỀN NHẬN'], required: true },
   receivedRate: { headers: ['% HH NHẬN', 'HH NHẬN'], required: true, rate: true },
@@ -65,7 +67,7 @@ export const RecordFileRow = z.object({
   row: z.number().int(),
   receiptDate: cell,
   fullName: cell,
-  idNumber: cell,
+  identity: cell,
   address: cell,
   socialInsuranceCode: cell,
   plan: cell,
@@ -112,17 +114,18 @@ export type ReconcileImportRequest = z.infer<typeof ReconcileImportRequest>;
 export const RecordPreviewRow = z.object({
   row: z.number(),
   fullName: z.string(),
-  /** 4 số cuối CCCD, cùng luật che CCCD của mọi response khác. */
-  idNumberTail: z.string(),
+  /** 4 số cuối khi là CCCD, nguyên mã khi là mã số BHXH. */
+  identity: z.string(),
   receiptMonth: z.string(),
   customer: z.enum(['existing', 'new']).nullable(),
   wardName: z.string(),
+  /** Tên nhân viên ATM, hoặc chữ ở cột NHẬP LIỆU khi không tra ra nhân viên. */
   staffName: z.string(),
   plan: SocialInsurancePlan.nullable(),
   months: z.number().nullable(),
   collectedCents: z.number().nullable(),
   paidCents: z.number().nullable(),
-  /** Chỉ báo, vẫn ghi được: mã ở cột NHẬP LIỆU không tra ra nhân viên ATM. */
+  /** Chỉ báo, vẫn ghi được: chữ ở cột NHẬP LIỆU không tra ra nhân viên ATM. */
   differences: z.array(z.string()),
   /** Mọi lỗi của dòng. Rỗng = dòng hợp lệ. */
   errors: z.array(z.string()),
@@ -154,12 +157,12 @@ export type ReconcileImportResult = z.infer<typeof ReconcileImportResult>;
 
 export const Reconciliation = z.object({
   plan: SocialInsurancePlan,
-  months: z.number(),
+  months: z.number().nullable(),
   collectedCents: z.number(),
   receivedCents: z.number(),
   receivedRate: z.number(),
   /**
-   * Tiền chi tính lại theo phương án, số tháng, tiền thu của file đối chiếu và
+   * Tiền chi tính lại theo phương án, tiền thu của file đối chiếu và
    * % chi của tháng biên lai. `null` khi bộ đó chưa có % chi.
    */
   paidCents: z.number().nullable(),
@@ -176,7 +179,8 @@ export const SocialInsuranceRow = z.object({
   socialInsuranceCode: z.string().nullable(),
   receiptMonth: z.string(),
   plan: SocialInsurancePlan,
-  months: z.number(),
+  /** `null` = file để trống cột SỐ THÁNG. */
+  months: z.number().nullable(),
   collectedCents: z.number(),
   paidCents: z.number(),
   collaboratorName: z.string().nullable(),
@@ -185,6 +189,8 @@ export const SocialInsuranceRow = z.object({
   entryStaffName: z.string().nullable(),
   entryStaffCode: z.string().nullable(),
   entryStaffDepartmentName: z.string().nullable(),
+  /** Chữ ở cột NHẬP LIỆU khi không tra ra nhân viên ATM. */
+  entryStaffText: z.string().nullable(),
   /** Người tải file. Đặt tên `createdBy…` để dùng chung `recordInScope`. */
   createdById: z.string(),
   createdByName: z.string(),
@@ -261,15 +267,19 @@ export const SocialInsuranceOptions = z.object({
 });
 export type SocialInsuranceOptions = z.infer<typeof SocialInsuranceOptions>;
 
+/** Giá trị ô Nhân viên ATM khi giữ chữ đã lưu từ cột NHẬP LIỆU. */
+export const KEEP_ENTRY_STAFF_TEXT = 'text';
+
 /** Sửa một dòng: các ô giữ dạng chữ để máy chủ kiểm bằng đúng luật của file 1. */
 export const RecordEditForm = z.object({
   receiptMonth: z.string().regex(/^\d{4}-\d{2}$/, 'Chưa chọn tháng biên lai'),
   plan: SocialInsurancePlan,
-  months: z.string().trim().min(1, 'Chưa nhập số tháng'),
+  /** Rỗng = không ghi số tháng. */
+  months: z.string().trim(),
   collected: z.string().trim().min(1, 'Chưa nhập số tiền thu'),
   paid: z.string().trim().min(1, 'Chưa nhập số tiền chi'),
   collaborator: z.string().trim().max(200),
-  /** Rỗng = không ghi nhân viên ATM. */
+  /** Rỗng = không ghi nhân viên ATM, xoá cả chữ ở cột NHẬP LIỆU. */
   entryStaffId: z.string().trim(),
 });
 export type RecordEditForm = z.infer<typeof RecordEditForm>;
@@ -284,7 +294,8 @@ export function differencesOf(
   if (!r) return [];
   return [
     ...(r.plan !== row.plan ? (['plan'] as const) : []),
-    ...(r.months !== row.months ? (['months'] as const) : []),
+    // Một bên để trống số tháng thì không so: số tháng không đổi tiền.
+    ...(r.months !== null && row.months !== null && r.months !== row.months ? (['months'] as const) : []),
     ...(r.collectedCents !== row.collectedCents ? (['collected'] as const) : []),
     ...(r.paidCents !== null && r.paidCents !== row.paidCents ? (['paid'] as const) : []),
   ];
