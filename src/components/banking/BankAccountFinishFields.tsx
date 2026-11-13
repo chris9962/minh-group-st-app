@@ -6,8 +6,8 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
-import { useEffect, useState } from "react";
-import { BookOpen, ExternalLink, QrCode } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, ClipboardPaste, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
@@ -134,6 +134,19 @@ export function BankAccountFinishFields({
     setValue("accountNumber", next, { shouldDirty: true, shouldValidate: Boolean(errors.accountNumber) });
   };
 
+  const trackingCodeField = register("trackingCode");
+  const trackingCodeInput = useRef<HTMLInputElement | null>(null);
+
+  // Trình duyệt không cho đọc bộ nhớ tạm thì đưa con trỏ vào ô để nhân viên dán tay.
+  const pasteTrackingCode = async () => {
+    try {
+      const text = (await navigator.clipboard.readText()).replace(/\s/g, "");
+      if (text) setValue("trackingCode", text, { shouldDirty: true, shouldValidate: Boolean(errors.trackingCode) });
+    } catch {
+      trackingCodeInput.current?.focus();
+    }
+  };
+
   return (
     <>
       {(referralQrUrl || bankQrLink || hasGuide) && (
@@ -250,26 +263,31 @@ export function BankAccountFinishFields({
         )}
 
         {isNonBankCode(bankCode) && (
-          <fieldset className={styles.linked}>
-            <legend>Tài khoản liên kết</legend>
+          <>
             <TextField
-              label="Ngân hàng"
+              label="Ngân hàng liên kết"
               required
               error={errors.linkedBankName?.message}
               {...register("linkedBankName")}
             />
             <TextField
-              label="Số tài khoản liên kết"
+              label="Mã đơn hàng"
               required
-              inputMode="numeric"
-              pattern="[0-9]*"
-              error={errors.linkedAccountNumber?.message ?? errors.accountNumber?.message}
-              {...register("linkedAccountNumber", {
-                // Ô số tài khoản bị ẩn với ShopeePay nhưng biểu mẫu vẫn bắt buộc trường đó.
-                onChange: (e) => setValue("accountNumber", e.target.value.trim()),
-              })}
+              className={styles.pasteField}
+              error={errors.trackingCode?.message}
+              {...trackingCodeField}
+              ref={(el) => {
+                trackingCodeField.ref(el);
+                trackingCodeInput.current = el;
+              }}
+              trailing={
+                <button type="button" className={styles.pasteButton} onClick={pasteTrackingCode}>
+                  <ClipboardPaste size={16} aria-hidden />
+                  Dán
+                </button>
+              }
             />
-          </fieldset>
+          </>
         )}
 
         <TextField label="Ghi chú" {...register("note")} />

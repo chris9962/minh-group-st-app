@@ -354,11 +354,8 @@ export async function fetchCustomerBankSlots(
 /** Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong ở ngoài. */
 export const BankAccountFinishForm = z.object({
   // Ký tự lạ đếm vào độ dài: `10005495 92` thiếu một số vẫn qua luật TPB đủ 11 ký tự (2026-09-13).
-  accountNumber: z
-    .string()
-    .trim()
-    .min(1, 'Chưa có số tài khoản')
-    .regex(/^\d*$/, 'Số tài khoản chỉ được có chữ số'),
+  // Dòng ShopeePay không có số tài khoản nên chuỗi rỗng hợp lệ ở đây; xem `finishFormSchema`.
+  accountNumber: z.string().trim().regex(/^\d*$/, 'Số tài khoản chỉ được có chữ số'),
   /**
    * Bắt đúng `YYYY-MM-DD`, và phải là ngày CÓ THẬT.
    *
@@ -372,13 +369,13 @@ export const BankAccountFinishForm = z.object({
    */
   openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
-  /** Tài khoản liên kết của dòng ShopeePay. Máy chủ bắt buộc cả hai ô với ShopeePay, bỏ qua với ngân hàng. */
+  /** Ngân hàng liên kết của dòng ShopeePay. Máy chủ bắt buộc với ShopeePay, bỏ qua với ngân hàng. */
   linkedBankName: z.string().trim().max(100, 'Tên ngân hàng dài quá'),
-  linkedAccountNumber: z
-    .string()
-    .trim()
-    .max(50, 'Số tài khoản liên kết dài quá')
-    .regex(/^\d*$/, 'Số tài khoản liên kết chỉ được có chữ số'),
+  /**
+   * Mã đơn hàng của dòng ShopeePay, máy chủ bắt buộc với ShopeePay. `optional` vì giao diện cũ
+   * đang mở trên máy nhân viên chưa gửi trường này, ngân hàng thường vẫn phải lưu được.
+   */
+  trackingCode: z.string().trim().max(100, 'Mã đơn hàng dài quá').optional(),
   /**
    * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
    * thiệu chọn lúc giữ chỗ, và mã tách theo loại. Muốn loại khác thì mở dòng
@@ -387,6 +384,16 @@ export const BankAccountFinishForm = z.object({
   note: z.string(),
 });
 export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
+
+/** Schema của biểu mẫu bước 2: ngân hàng bắt buộc số tài khoản, dòng ShopeePay bắt buộc mã đơn hàng. */
+export const finishFormSchema = (bankCode: string) =>
+  isNonBankCode(bankCode)
+    ? BankAccountFinishForm.extend({
+        trackingCode: z.string().trim().min(1, 'Chưa có mã đơn hàng').max(100, 'Mã đơn hàng dài quá'),
+      })
+    : BankAccountFinishForm.extend({
+        accountNumber: BankAccountFinishForm.shape.accountNumber.min(1, 'Chưa có số tài khoản'),
+      });
 
 /**
  * Bước 2 + bước 3 gộp lại — biểu mẫu SỬA một tài khoản đã `done` (P-22).

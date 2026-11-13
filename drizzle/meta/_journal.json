@@ -1170,6 +1170,13 @@
       "when": 1789891400094,
       "tag": "0167_social_insurance_no_entry_staff",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1789891400095,
+      "tag": "0168_bank_account_tracking_code",
+      "breakpoints": true
     }
   ]
 }

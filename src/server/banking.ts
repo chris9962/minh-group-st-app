@@ -654,7 +654,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       accountType: bankAccounts.accountType,
       note: bankAccounts.note,
       linkedBankName: bankAccounts.linkedBankName,
-      linkedAccountNumber: bankAccounts.linkedAccountNumber,
+      trackingCode: bankAccounts.trackingCode,
       errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
@@ -716,7 +716,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       accountType: page.accountType,
       note: page.note,
       linkedBankName: sql<string>`coalesce(${page.linkedBankName}, '')`,
-      linkedAccountNumber: sql<string>`coalesce(${page.linkedAccountNumber}, '')`,
+      trackingCode: sql<string>`coalesce(${page.trackingCode}, '')`,
       errorNote: page.errorNote,
       createdById: page.createdBy,
       createdByName: users.fullName,
@@ -1366,7 +1366,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountType,
     note: r.note,
     linkedBankName: r.linkedBankName,
-    linkedAccountNumber: r.linkedAccountNumber,
+    trackingCode: r.trackingCode,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,
@@ -1905,20 +1905,24 @@ export async function customerBankSlots(
  * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
  * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
-type LinkedAccountInput = Pick<BankAccountFinishForm, "linkedBankName" | "linkedAccountNumber">;
+type FinishFieldsInput = Pick<BankAccountFinishForm, "accountNumber" | "linkedBankName" | "trackingCode">;
 
-const linkedAccountMissing = (bankCode: string, form: LinkedAccountInput): string | null =>
-  isNonBankCode(bankCode) && (!form.linkedBankName || !form.linkedAccountNumber)
-    ? `${bankCode} cần ngân hàng và số tài khoản liên kết.`
-    : null;
+// Schema chung nhận số tài khoản rỗng vì dòng ShopeePay, nên ngân hàng phải kiểm lại ở đây.
+const requiredFieldMissing = (bankCode: string, form: FinishFieldsInput): string | null => {
+  if (isNonBankCode(bankCode)) {
+    if (!form.linkedBankName) return `${bankCode} cần ngân hàng liên kết.`;
+    return form.trackingCode ? null : `${bankCode} cần mã đơn hàng.`;
+  }
+  return form.accountNumber ? null : "Chưa có số tài khoản";
+};
 
-// Dòng ShopeePay không có ô số tài khoản riêng: số tài khoản liên kết ghi vào cả hai cột.
-const linkedAccountOf = (bankCode: string, form: LinkedAccountInput) =>
+// Dòng ShopeePay không nhập số tài khoản (chốt 2026-11-13): cột số tài khoản để trống.
+const nonBankFieldsOf = (bankCode: string, form: FinishFieldsInput) =>
   isNonBankCode(bankCode)
     ? {
-        accountNumber: form.linkedAccountNumber,
+        accountNumber: "",
         linkedBankName: form.linkedBankName,
-        linkedAccountNumber: form.linkedAccountNumber,
+        trackingCode: form.trackingCode || null,
       }
     : {};
 
@@ -1991,8 +1995,8 @@ export async function finishBankAccount(
    */
   const openedDate = current.date || businessDay();
 
-  const linkedMissing = linkedAccountMissing(current.bankCode, form);
-  if (linkedMissing) return { ok: false, message: linkedMissing };
+  const fieldMissing = requiredFieldMissing(current.bankCode, form);
+  if (fieldMissing) return { ok: false, message: fieldMissing };
 
   /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
@@ -2027,7 +2031,7 @@ export async function finishBankAccount(
       openedDate,
       appInstalled: form.appInstalled,
       note: form.note,
-      ...linkedAccountOf(current.bankCode, form),
+      ...nonBankFieldsOf(current.bankCode, form),
       finishedAt: new Date(),
     });
 
@@ -2125,8 +2129,8 @@ export async function updateFinishedAccount(
       message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
     };
 
-  const linkedMissing = linkedAccountMissing(current.bankCode, form);
-  if (linkedMissing) return { ok: false, message: linkedMissing };
+  const fieldMissing = requiredFieldMissing(current.bankCode, form);
+  if (fieldMissing) return { ok: false, message: fieldMissing };
 
   const previousDate = current.date;
 
@@ -2143,7 +2147,7 @@ export async function updateFinishedAccount(
       transactionAt: form.transactionAt || null,
       appInstalled: form.appInstalled,
       note: form.note,
-      ...linkedAccountOf(current.bankCode, form),
+      ...nonBankFieldsOf(current.bankCode, form),
     });
 
     if (updated.length === 0)

@@ -83,9 +83,9 @@ export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
-  /** Tài khoản liên kết của dòng ShopeePay; `''` = không có. */
+  /** Ngân hàng liên kết và mã đơn hàng của dòng ShopeePay; `''` = không có. */
   linkedBankName: z.string().default(''),
-  linkedAccountNumber: z.string().default(''),
+  trackingCode: z.string().default(''),
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
   /**

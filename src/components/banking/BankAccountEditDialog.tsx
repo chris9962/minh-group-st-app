@@ -15,6 +15,7 @@ import {
   canEditOpeningPhotos,
   errorPhotoDeadline,
   finishBankAccount,
+  finishFormSchema,
   setBankAccountPhotos,
   updateBankAccount,
   isNonBankCode,
@@ -84,7 +85,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const finishForm = useForm<BankAccountFinishForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
-    resolver: zodResolver(BankAccountFinishForm),
+    resolver: zodResolver(finishFormSchema(data?.bankCode ?? "")),
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
@@ -115,7 +116,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       appInstalled:
         data?.status === "creating" ? (data.appDefault ?? false) : (data?.appInstalled ?? false),
       linkedBankName: data?.linkedBankName ?? "",
-      linkedAccountNumber: data?.linkedAccountNumber ?? "",
+      trackingCode: data?.trackingCode ?? "",
       note: data?.note ?? "",
     },
   });

@@ -41,6 +41,7 @@ import {
   BankAccountFinishForm,
   BankAccountNotFoundError,
   approveBankAccount,
+  finishFormSchema,
   deleteBankAccount,
   finishBankAccount,
   isNonBankCode,
@@ -178,7 +179,7 @@ function FinishAccountCard({
   const finishForm = useForm<BankAccountFinishForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
-    resolver: zodResolver(BankAccountFinishForm),
+    resolver: zodResolver(finishFormSchema(data.bankCode)),
     defaultValues: {
       /**
        * Ngân hàng lấy số tài khoản theo SĐT thì điền sẵn SỐ CHÍNH — phần lớn
@@ -206,7 +207,7 @@ function FinishAccountCard({
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
       appInstalled: data.appDefault,
       linkedBankName: data.linkedBankName,
-      linkedAccountNumber: data.linkedAccountNumber,
+      trackingCode: data.trackingCode,
       note: data.note,
     },
   });
@@ -681,8 +682,8 @@ function DoneAccountCard({
               <dd>{data.linkedBankName || "—"}</dd>
             </div>
             <div>
-              <dt>Số tài khoản liên kết</dt>
-              <dd>{data.linkedAccountNumber || "—"}</dd>
+              <dt>Mã đơn hàng</dt>
+              <dd>{data.trackingCode || "—"}</dd>
             </div>
           </>
         )}

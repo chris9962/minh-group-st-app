@@ -26,16 +26,36 @@
   }
 }
 
-.linked {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
+/* Chừa chỗ cho nút Dán có chữ, rộng hơn chỗ 40px mặc định của `TextField`. */
+.pasteField input {
+  padding-right: 76px;
+}
 
-  legend {
-    padding: 0;
-    margin-bottom: 8px;
-    font-weight: 600;
+.pasteButton {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  /* Nút thô cần màu chữ tường minh: bộ tối không kế thừa được từ nền. */
+  color: var(--om-orange-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  /* Vùng bấm 44px cho ngón tay mà không kéo cao ô nhập (AGENTS.md §8). */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -4px -2px;
+  }
+
+  &:hover {
+    color: var(--om-orange-mid);
   }
 }
