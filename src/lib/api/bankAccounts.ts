@@ -372,9 +372,15 @@ export const BankAccountFinishForm = z.object({
   /** Ngân hàng liên kết của dòng ShopeePay. Máy chủ bắt buộc với ShopeePay, bỏ qua với ngân hàng. */
   linkedBankName: z.string().trim().max(100, 'Tên ngân hàng dài quá'),
   /**
-   * Mã đơn hàng của dòng ShopeePay, máy chủ bắt buộc với ShopeePay. `optional` vì giao diện cũ
-   * đang mở trên máy nhân viên chưa gửi trường này, ngân hàng thường vẫn phải lưu được.
+   * Số tài khoản liên kết và mã đơn hàng của dòng ShopeePay, máy chủ bắt buộc với ShopeePay.
+   * `optional` vì giao diện cũ đang mở trên máy nhân viên chưa gửi đủ hai trường này.
    */
+  linkedAccountNumber: z
+    .string()
+    .trim()
+    .max(50, 'Số tài khoản liên kết dài quá')
+    .regex(/^\d*$/, 'Số tài khoản liên kết chỉ được có chữ số')
+    .optional(),
   trackingCode: z.string().trim().max(100, 'Mã đơn hàng dài quá').optional(),
   /**
    * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
@@ -385,10 +391,13 @@ export const BankAccountFinishForm = z.object({
 });
 export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
 
-/** Schema của biểu mẫu bước 2: ngân hàng bắt buộc số tài khoản, dòng ShopeePay bắt buộc mã đơn hàng. */
+/** Schema của biểu mẫu bước 2: ngân hàng bắt buộc số tài khoản, dòng ShopeePay bắt buộc số liên kết và mã đơn hàng. */
 export const finishFormSchema = (bankCode: string) =>
   isNonBankCode(bankCode)
     ? BankAccountFinishForm.extend({
+        linkedAccountNumber: BankAccountFinishForm.shape.linkedAccountNumber
+          .unwrap()
+          .min(1, 'Chưa có số tài khoản liên kết'),
         trackingCode: z.string().trim().min(1, 'Chưa có mã đơn hàng').max(100, 'Mã đơn hàng dài quá'),
       })
     : BankAccountFinishForm.extend({

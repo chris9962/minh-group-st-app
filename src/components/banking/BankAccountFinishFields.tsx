@@ -271,6 +271,14 @@ export function BankAccountFinishFields({
               {...register("linkedBankName")}
             />
             <TextField
+              label="Số tài khoản liên kết"
+              required
+              inputMode="numeric"
+              pattern="[0-9]*"
+              error={errors.linkedAccountNumber?.message}
+              {...register("linkedAccountNumber")}
+            />
+            <TextField
               label="Mã đơn hàng"
               required
               className={styles.pasteField}

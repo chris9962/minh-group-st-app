@@ -1344,7 +1344,7 @@ export const bankAccounts = pgTable(
     accountNumber: text("account_number"),
     /** Tài khoản ngân hàng khách liên kết với ví, chỉ dòng ShopeePay có (migration 0166). */
     linkedBankName: text("linked_bank_name"),
-    /** Bỏ khỏi bước 2 từ 2026-11-13, cột giữ số đã nhập trước đó. */
+    /** Bước 2 điền sẵn SĐT chính của khách (chốt 2026-11-13). */
     linkedAccountNumber: text("linked_account_number"),
     /** Mã đơn hàng của đơn quà ShopeePay (migration 0168). */
     trackingCode: text("tracking_code"),
