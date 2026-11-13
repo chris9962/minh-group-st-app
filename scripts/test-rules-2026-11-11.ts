@@ -205,6 +205,48 @@ check("Phòng Y, MB + TPB = 0,8", points(accountsOf(["MB", "TPB"], AT, PHONG_Y))
 check("TCB vẫn ngoài thể lệ", bankTierFor("TCB", AT), null);
 check("SHB + LPB vẫn là Combo 1 của SHB", points(accountsOf(["SHB", "LPB"])), 0.2);
 
+section("Phòng Y không có gói BH điện 1 năm 200k");
+const th8 = ["MB", "TPB", "MSBb"];
+const packagesOf = (r: GiftResult) => codesOf(r.basket.filter((b) => b.kind === "insurance-package"));
+check(
+  "TH8 phòng khác vẫn có gói 200k",
+  packagesOf(gift(accountsOf(th8))),
+  "BH-COMBO-1N,BH-2N-XEMAY,BH-2N-XEMAY-2XE,BH-2N-DIEN-100K,BH-1N-DIEN-200K",
+);
+check(
+  "TH8 Phòng Y bỏ gói 200k, giữ các gói 2 năm khác",
+  packagesOf(gift(accountsOf(th8, AT, PHONG_Y), AT, PHONG_Y)),
+  "BH-COMBO-1N,BH-2N-XEMAY,BH-2N-XEMAY-2XE,BH-2N-DIEN-100K",
+);
+check(
+  "TH8 Phòng Y chỉ truyền phòng ở GiftInput như production: bỏ gói 200k",
+  packagesOf(gift(accountsOf(th8), AT, PHONG_Y)).includes("BH-1N-DIEN-200K"),
+  false,
+);
+check(
+  "TH8 phòng Dự án vẫn có gói 200k",
+  packagesOf(gift(accountsOf(th8), AT, "PHONG-DU-AN")).includes("BH-1N-DIEN-200K"),
+  true,
+);
+check(
+  "TH8 kênh Bệnh viện vẫn có gói 200k",
+  packagesOf(
+    giftFor({ accounts: accountsOf(th8), channelCodes: ["KENH-BENH-VIEN"], departmentCode: null, grantedItem: null }, AT)!,
+  ).includes("BH-1N-DIEN-200K"),
+  true,
+);
+check(
+  "TH8 Phòng Y vẫn có Mì, BH sức khoẻ, Nón, Bảng mica",
+  codesOf(gift(accountsOf(th8, AT, PHONG_Y), AT, PHONG_Y).basket.filter((b) => b.kind === "gift-item")),
+  "QUA-MI,QUA-BH-SUC-KHOE,QUA-NON-BH,QUA-MICA",
+);
+check("TH1 Phòng Y không đổi", packagesOf(gift(accountsOf(["MB"], AT, PHONG_Y), AT, PHONG_Y)), "BH-1N-XEMAY,BH-1N-DIEN");
+check(
+  "Phòng Y hồ sơ ngày 10/11 vẫn có gói 200k",
+  packagesOf(gift(accountsOf(th8, BEFORE, PHONG_Y), BEFORE, PHONG_Y)).includes("BH-1N-DIEN-200K"),
+  true,
+);
+
 /* ── Tổng kết ────────────────────────────────────────────────────────── */
 
 console.log(`\n  ${passed} ca đạt`);

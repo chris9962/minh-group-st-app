@@ -560,6 +560,9 @@ const GIFT_ITEM_CASES = new Set(["TH8"]);
 const ITEMS_PHONG_Y = ["QUA-MICA"];
 const PHONG_Y = "PHONG-Y";
 
+/** Phòng Y không tặng gói BH điện 1 năm 200k dù khách đủ 2 năm BH (Phòng Y báo, chủ dự án chốt 2026-11-13). */
+const PACKAGES_NOT_IN_PHONG_Y = new Set(["BH-1N-DIEN-200K"]);
+
 const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
 /** Ba vế của cùng MỘT nhóm khách — thoả một vế là đủ (thể lệ mục 4b). */
 const GIFT_ITEM_DEPARTMENTS = new Set(["PHONG-Y", "PHONG-DU-AN"]);
@@ -776,7 +779,9 @@ export function gift(input: GiftInput): GiftResult {
   }));
   for (const c of cash) explain.push(`Tặng ${c.amount.toLocaleString("vi-VN")}đ vào ${c.bankCode}.`);
 
-  const insuranceBasket = INSURANCE_BASKET[matched.years];
+  const insuranceBasket = INSURANCE_BASKET[matched.years].filter(
+    (code) => input.departmentCode !== PHONG_Y || !PACKAGES_NOT_IN_PHONG_Y.has(code),
+  );
   const cashTotal = cash.reduce((sum, c) => sum + c.amount, 0);
   const basket: GiftChoice[] = insuranceBasket.map((code) => ({
     kind: "insurance-package" as const,
