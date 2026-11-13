@@ -192,7 +192,7 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
 const BankAccountPage = pageOf(BankAccountRow);
 
 /** Dòng của file Excel ở trang chi tiết ngân hàng; `idNumber` rỗng khi người xuất thiếu quyền đọc CCCD. */
-export const BankAccountExportRow = BankAccountRow.extend({ idNumber: z.string() });
+export const BankAccountExportRow = BankAccountRow.extend({ idNumber: z.string(), phone: z.string() });
 export type BankAccountExportRow = z.infer<typeof BankAccountExportRow>;
 const BankAccountExportPage = pageOf(BankAccountExportRow);
 

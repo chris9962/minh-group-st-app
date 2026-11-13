@@ -1014,8 +1014,9 @@ export async function listBankAccountsOfBankForExport(
   withIdNumber: boolean,
 ): Promise<Page<BankAccountExportRow>> {
   const where = bankAccountsOfBankWhere(bankId, filters);
+  const customerIds = db.select({ id: bankAccounts.customerId }).from(bankAccounts).where(where);
 
-  const [rows, [totals], idRows] = await Promise.all([
+  const [rows, [totals], idRows, phoneRows] = await Promise.all([
     orderedPage(where, "desc", EXCEL_ROW_LIMIT, 0),
     db.select({ value: count() }).from(bankAccounts).where(where),
     // Thiếu quyền thì không đọc cột CCCD, số không rời máy chủ.
@@ -1023,20 +1024,21 @@ export async function listBankAccountsOfBankForExport(
       ? db
           .select({ id: customers.id, idNumber: customers.idNumber })
           .from(customers)
-          .where(
-            inArray(
-              customers.id,
-              db.select({ id: bankAccounts.customerId }).from(bankAccounts).where(where),
-            ),
-          )
+          .where(inArray(customers.id, customerIds))
       : [],
+    db
+      .select({ customerId: customerPhones.customerId, number: customerPhones.number })
+      .from(customerPhones)
+      .where(and(inArray(customerPhones.customerId, customerIds), eq(customerPhones.isPrimary, true))),
   ]);
   const idNumberOf = new Map(idRows.map((r) => [r.id, r.idNumber ?? ""]));
+  const phoneOf = new Map(phoneRows.map((r) => [r.customerId, r.number]));
 
   return {
     rows: rows.map((r) => ({
       ...toRow(revealCodeText(r)),
       idNumber: idNumberOf.get(r.customerId) ?? "",
+      phone: phoneOf.get(r.customerId) ?? "",
     })),
     total: totals?.value ?? 0,
   };

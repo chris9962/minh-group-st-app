@@ -360,6 +360,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
           ...(user && can(user, "customer", "access-id-number")
             ? [{ header: "SỐ CCCD", ...CUSTOMER, width: 15, type: "text" as const, value: (r: BankAccountExportRow) => r.idNumber }]
             : []),
+          { header: "SĐT", ...CUSTOMER, width: 13, type: "text", value: (r) => r.phone },
           { header: "NGÀY", ...ACCOUNT, width: 12, value: (r) => (r.date ? formatDate(r.date) : "") },
           // `text` cho STK và mã: để mặc định thì Excel hiểu là số học và cắt
           // mất số 0 đầu.
