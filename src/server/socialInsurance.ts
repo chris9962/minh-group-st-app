@@ -4,6 +4,7 @@ import {
   DATA_ENTRY_TYPE_NAME,
   KEEP_ENTRY_STAFF_TEXT,
   KIND_LABEL,
+  PLAN_LABEL,
   ReconcileStatus,
   SocialInsuranceKind,
   SocialInsurancePlan,
@@ -499,12 +500,13 @@ export async function updateSocialInsurance(
           eq(r.kind, current.kind),
           eq(r.customerId, current.customerId),
           eq(r.receiptMonth, entry.receiptMonth),
+          eq(r.plan, entry.plan),
           ne(r.id, id),
         ),
       )
       .limit(1);
     if (clash) {
-      const message = `Khách đã có hồ sơ ${KIND_LABEL[current.kind]} tháng ${monthLabel(entry.receiptMonth)}`;
+      const message = `Khách đã có hồ sơ ${KIND_LABEL[current.kind]} ${PLAN_LABEL[entry.plan]} tháng ${monthLabel(entry.receiptMonth)}`;
       return { ok: false, message, fieldErrors: { receiptMonth: message } };
     }
 

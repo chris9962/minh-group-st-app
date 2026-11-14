@@ -2449,8 +2449,9 @@ export const socialInsuranceKpiRates = pgTable(
 
 /**
  * Một dòng của file 1, cộng 4 cột đối chiếu của file 2. `customer_id` là hồ sơ
- * GỐC: mỗi khách mỗi loại mỗi tháng biên lai đúng một dòng, tính trên mọi lần mở
- * hồ sơ. `service_id` là lượt "Nhập liệu BHYT/BHXH" của nhân viên ATM.
+ * GỐC: mỗi khách mỗi loại mỗi tháng biên lai mỗi phương án đúng một dòng, tính
+ * trên mọi lần mở hồ sơ. Khách đóng lần đầu nhiều tháng có một dòng Tăng mới và
+ * một dòng Tái tục cùng tháng (migration 0172). `service_id` là lượt "Nhập liệu BHYT/BHXH" của nhân viên ATM.
  */
 export const socialInsuranceRecords = pgTable(
   "social_insurance_records",
@@ -2487,7 +2488,7 @@ export const socialInsuranceRecords = pgTable(
     reconciledBy: uuid("reconciled_by").references(() => users.id),
   },
   (t) => [
-    uniqueIndex("social_insurance_records_customer_month").on(t.kind, t.customerId, t.receiptMonth),
+    uniqueIndex("social_insurance_records_customer_month_plan").on(t.kind, t.customerId, t.receiptMonth, t.plan),
     index("social_insurance_records_month").on(sql`receipt_month desc, created_at desc, id`),
     index("social_insurance_records_dept_month").on(t.uploadedByDepartmentId, t.receiptMonth),
     index("social_insurance_records_uploader_month").on(t.uploadedBy, t.receiptMonth),

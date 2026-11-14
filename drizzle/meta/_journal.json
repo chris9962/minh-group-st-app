@@ -1198,6 +1198,13 @@
       "when": 1789891400098,
       "tag": "0171_department_attendance_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1789891400099,
+      "tag": "0172_social_insurance_records_plan_unique",
+      "breakpoints": true
     }
   ]
 }

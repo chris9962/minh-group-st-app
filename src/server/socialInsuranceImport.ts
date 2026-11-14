@@ -463,11 +463,15 @@ async function checkRecords(
   const rootIds = [...new Set([...roots.map((r) => r.id), ...codeOwners.map((r) => r.id)])];
   const taken = rootIds.length
     ? await conn
-        .select({ customerId: socialInsuranceRecords.customerId, month: socialInsuranceRecords.receiptMonth })
+        .select({
+          customerId: socialInsuranceRecords.customerId,
+          month: socialInsuranceRecords.receiptMonth,
+          plan: socialInsuranceRecords.plan,
+        })
         .from(socialInsuranceRecords)
         .where(and(eq(socialInsuranceRecords.kind, kind), inArray(socialInsuranceRecords.customerId, rootIds)))
     : [];
-  const takenKeys = new Set(taken.map((t) => `${t.customerId}|${t.month}`));
+  const takenKeys = new Set(taken.map((t) => `${t.customerId}|${t.month}|${t.plan}`));
 
   // Mã số BHXH đi kèm CCCD ở dòng khác của file: dòng chỉ ghi mã đó là cùng khách, dù đứng trước hay sau.
   const idNumberOfCodeInFile = new Map<string, string>();
@@ -523,14 +527,17 @@ async function checkRecords(
         : code
           ? `code:${code}`
           : "";
-    if (partial.receiptMonth && customerKey) {
-      const key = `${customerKey}|${partial.receiptMonth}`;
+    // Khách đóng lần đầu nhiều tháng có hai dòng cùng tháng: một Tăng mới, một Tái tục (chốt 2026-11-14).
+    if (partial.receiptMonth && partial.plan && customerKey) {
+      const key = `${customerKey}|${partial.receiptMonth}|${partial.plan}`;
       const earlier = firstRowOf.get(key);
       if (earlier !== undefined)
-        errors.push(`Trùng dòng ${earlier}: cùng khách, cùng tháng biên lai`);
+        errors.push(`Trùng dòng ${earlier}: cùng khách, cùng tháng biên lai, cùng phương án`);
       else firstRowOf.set(key, input.row);
-      if (root && takenKeys.has(`${root.id}|${partial.receiptMonth}`))
-        errors.push(`Khách đã có hồ sơ ${KIND_LABEL[kind]} tháng ${monthLabel(partial.receiptMonth)}`);
+      if (root && takenKeys.has(`${root.id}|${partial.receiptMonth}|${partial.plan}`))
+        errors.push(
+          `Khách đã có hồ sơ ${KIND_LABEL[kind]} ${PLAN_LABEL[partial.plan]} tháng ${monthLabel(partial.receiptMonth)}`,
+        );
     }
 
     preview.push({
@@ -731,7 +738,8 @@ type ReconcileValues = {
 
 /**
  * Kiểm file 2. Mỗi dòng khớp đúng một dòng file 1 theo loại, khách, tháng biên
- * lai. Khách tra theo CCCD, không ra thì theo mã số BHXH. File 2 khác file 1
+ * lai, phương án. Khách chỉ có một dòng trong tháng thì khớp dòng đó dù phương
+ * án khác. Khách tra theo CCCD, không ra thì theo mã số BHXH. File 2 khác file 1
  * thì không phải lỗi: đó là chỗ file 1 nhập sai, trang tô ô lệch.
  */
 async function checkReconciliation(
@@ -778,7 +786,11 @@ async function checkReconciliation(
           and(eq(socialInsuranceRecords.kind, kind), inArray(socialInsuranceRecords.customerId, rootIds), scope),
         )
     : [];
-  const recordOf = new Map(records.map((r) => [`${r.customerId}|${r.receiptMonth}`, r]));
+  const recordsOf = new Map<string, typeof records>();
+  for (const r of records) {
+    const key = `${r.customerId}|${r.receiptMonth}`;
+    recordsOf.set(key, [...(recordsOf.get(key) ?? []), r]);
+  }
 
   const months = rows.map((r) => parseReceiptMonth(r.receiptDate)).filter((m): m is string => m !== null);
   const rateBooks = await rateBooksFor(months, conn);
@@ -816,13 +828,19 @@ async function checkReconciliation(
 
     if (!identity) errors.push("Thiếu CCCD hoặc mã số BHXH");
     const rootId = rootOfIdNumber.get(idNumber) ?? rootOfCode.get(normalizeSocialCode(identity)) ?? null;
-    const record = rootId && receiptMonth ? recordOf.get(`${rootId}|${receiptMonth}`) : undefined;
+    const candidates = (rootId && receiptMonth ? recordsOf.get(`${rootId}|${receiptMonth}`) : undefined) ?? [];
+    const record = candidates.find((c) => c.plan === plan) ?? (candidates.length === 1 ? candidates[0] : undefined);
     if (identity && receiptMonth && !record)
-      errors.push(`Không tìm thấy hồ sơ ${KIND_LABEL[kind]} tháng ${monthLabel(receiptMonth)} của khách này`);
+      errors.push(
+        candidates.length > 0 && plan
+          ? `Không tìm thấy hồ sơ ${KIND_LABEL[kind]} ${PLAN_LABEL[plan]} tháng ${monthLabel(receiptMonth)} của khách này`
+          : `Không tìm thấy hồ sơ ${KIND_LABEL[kind]} tháng ${monthLabel(receiptMonth)} của khách này`,
+      );
 
     if (record) {
       const earlier = firstRowOf.get(record.id);
-      if (earlier !== undefined) errors.push(`Trùng dòng ${earlier}: cùng khách, cùng tháng biên lai`);
+      if (earlier !== undefined)
+        errors.push(`Trùng dòng ${earlier}: cùng khách, cùng tháng biên lai, cùng phương án`);
       else firstRowOf.set(record.id, input.row);
     }
 
