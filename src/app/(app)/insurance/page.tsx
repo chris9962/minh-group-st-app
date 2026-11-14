@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BotOff, Download, Layers, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -11,7 +11,6 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
-import buttonStyles from "@/components/ui/Button.module.css";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -20,6 +19,7 @@ import { FilterChoices } from "@/components/ui/FilterChoices";
 import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { MonthChoice } from "@/components/ui/MonthChoice";
+import { MoreActionsMenu } from "@/components/ui/MoreActionsMenu";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
@@ -121,6 +121,7 @@ const pageFromUrl = (value: string | null): number => {
 export default function InsurancePage() {
   const user = useSession((s) => s.user);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
   const [status, setStatus] = useState<InsuranceOrderStatus | "">(() => {
@@ -621,6 +622,18 @@ export default function InsurancePage() {
     [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, compact, editVisible, listUrl, removeVisible],
   );
 
+  const moreActions = [
+    ...(isDirector && can(user, "insurance", "create")
+      ? [{ label: "Lập đơn", icon: <Plus size={16} aria-hidden />, onSelect: () => setCreating(true) }]
+      : []),
+    ...(can(user, "insurance", "split-blanks")
+      ? [{ label: "Phát phôi", icon: <Layers size={16} aria-hidden />, onSelect: () => router.push("/insurance/blanks") }]
+      : []),
+    ...(can(user, "insurance", "export")
+      ? [{ label: exporting ? "Đang xuất…" : "Xuất Excel", icon: <Download size={16} aria-hidden />, onSelect: chooseColumns }]
+      : []),
+  ];
+
   return (
     <>
       <TopBar title="Bảo hiểm">
@@ -742,25 +755,8 @@ export default function InsurancePage() {
             </FilterField>
           ) : null}
         </FilterButton>
-        {can(user, "insurance", "split-blanks") && (
-          <Link href="/insurance/blanks" aria-label="Phát phôi" className={`btn btn-secondary ${buttonStyles.base}`}>
-            <Layers size={16} aria-hidden />
-            <span className={buttonStyles.label}>Phát phôi</span>
-          </Link>
-        )}
-        {can(user, "insurance", "export") && (
-          <Button
-            variant="secondary"
-            aria-label="Xuất Excel"
-            disabled={exporting}
-            onClick={chooseColumns}
-          >
-            <Download size={16} aria-hidden />
-            <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
-          </Button>
-        )}
         {/*
-          Chỉ Giám đốc thấy nút này (chốt 2026-09-10). Đây là lối vào của đơn mua
+          Chỉ Giám đốc thấy mục "Lập đơn" (chốt 2026-09-10). Đây là lối vào của đơn mua
           TỰ NGUYỆN `source='self'`, đang dùng để chạy thử đường PVI, chưa mở cho
           đội KD. Đơn theo quà `source='gift'` đi lối khác nên không đụng tới.
 
@@ -768,16 +764,7 @@ export default function InsurancePage() {
           nó chỉ ẩn hiện, và `/api/insurance-orders` vẫn kiểm `insurance:create`
           như cũ. Mở cho đội KD thì bỏ vế `role` đi, không phải cấp quyền mới.
         */}
-        {isDirector && can(user, "insurance", "create") && (
-          <Button
-            aria-label="Lập đơn bảo hiểm"
-            className={buttonStyles.hideOnMobile}
-            onClick={() => setCreating(true)}
-          >
-            <Plus size={16} aria-hidden />
-            <span className={buttonStyles.label}>Lập đơn</span>
-          </Button>
-        )}
+        {moreActions.length > 0 && <MoreActionsMenu label="Thao tác khác" items={moreActions} />}
       </TopBar>
 
       <main className={styles.body}>
