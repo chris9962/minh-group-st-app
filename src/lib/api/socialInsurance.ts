@@ -199,7 +199,7 @@ export const SocialInsuranceRow = z.object({
   createdByDepartmentName: z.string().nullable(),
   createdAt: z.string(),
   reconciliation: Reconciliation.nullable(),
-  /** Tháng biên lai hoặc tháng tải file đã chốt lương: không sửa, không xoá. */
+  /** Tháng biên lai hoặc tháng của lượt nhập liệu đã chốt lương: không sửa, không xoá. */
   monthClosed: z.boolean(),
 });
 export type SocialInsuranceRow = z.infer<typeof SocialInsuranceRow>;
@@ -223,9 +223,8 @@ export const RECONCILE_STATUS_LABEL: Record<ReconcileStatus, string> = {
 export type SocialInsuranceFilters = {
   /** Tìm theo tên khách, CCCD hoặc mã số BHXH. */
   search: string;
-  /** Khoảng ngày tạo (ngày tải file), `YYYY-MM-DD` theo giờ Việt Nam. Rỗng = không giới hạn. */
-  from: string;
-  to: string;
+  /** Tháng biên lai `YYYY-MM`. Rỗng = mọi tháng. */
+  month: string;
   kind: SocialInsuranceKind | '';
   plan: SocialInsurancePlan | '';
   collaboratorId: string;
@@ -234,7 +233,7 @@ export type SocialInsuranceFilters = {
   status: ReconcileStatus | '';
 };
 
-export const SOCIAL_INSURANCE_SORT = ['createdAt'] as const;
+export const SOCIAL_INSURANCE_SORT = ['receiptMonth'] as const;
 export type SocialInsuranceSort = (typeof SOCIAL_INSURANCE_SORT)[number];
 export type SocialInsuranceQuery = PageQuery<SocialInsuranceSort> & SocialInsuranceFilters;
 
@@ -343,8 +342,7 @@ async function failure(res: Response, fallback: string): Promise<Error> {
 
 const filterParams = (q: SocialInsuranceFilters) => ({
   search: q.search,
-  from: q.from,
-  to: q.to,
+  month: q.month,
   kind: q.kind,
   plan: q.plan,
   collaboratorId: q.collaboratorId,

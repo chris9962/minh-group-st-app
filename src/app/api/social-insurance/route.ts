@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     await listSocialInsurance(
       guard.actor,
       socialInsuranceFiltersFrom(url.searchParams),
-      pageArgsFrom(url, SOCIAL_INSURANCE_SORT, "createdAt"),
+      pageArgsFrom(url, SOCIAL_INSURANCE_SORT, "receiptMonth"),
     ),
   );
 }

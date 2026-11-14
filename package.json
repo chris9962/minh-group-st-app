@@ -49,6 +49,7 @@
     "db:seed-attendance-mode": "bun --env-file=.env.local scripts/db-seed-attendance-mode.ts",
     "db:set-draft-ttl": "bun --env-file=.env.local scripts/db-set-draft-ttl.ts",
     "db:delete-data-entry-services": "bun --env-file=.env.local scripts/db-delete-data-entry-services.ts",
+    "db:move-data-entry-services": "bun --env-file=.env.local scripts/db-move-data-entry-services.ts",
     "db:announce-release": "bun --env-file=.env.local scripts/db-announce-release.ts",
     "db:backfill-policy-gcn": "bun --env-file=.env.local scripts/db-backfill-policy-gcn.ts",
     "db:backfill-origin-department": "bun --env-file=.env.local scripts/db-backfill-origin-department.ts",

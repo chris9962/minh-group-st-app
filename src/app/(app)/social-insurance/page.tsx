@@ -18,8 +18,8 @@ import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { FilterChoices } from "@/components/ui/FilterChoices";
-import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterField } from "@/components/ui/FilterField";
+import { MonthChoice } from "@/components/ui/MonthChoice";
 import { MoreActionsMenu } from "@/components/ui/MoreActionsMenu";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
@@ -57,13 +57,12 @@ import {
   type ExcelColumn,
   type ExcelColumnDef,
 } from "@/lib/excel";
-import { businessDay, businessMonth, formatCount, formatDate, formatDateTime } from "@/lib/format";
+import { formatCount } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { decimalFromCents, formatCents, formatRate, RATE_SCALE } from "@/lib/money";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
-import { isRealIsoDate } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -113,9 +112,6 @@ const NHAN_SU = { group: "Nhân sự", groupColor: EXCEL_GROUP_COLORS.staff };
 const money = (cents: number) => Number(decimalFromCents(cents));
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
-const dateOf = (value: string): Date | undefined =>
-  isRealIsoDate(value) ? new Date(`${value}T00:00:00`) : undefined;
-
 const sumCents = (rows: SocialInsuranceExportRow[], pick: (r: SocialInsuranceExportRow) => number) =>
   money(rows.reduce((s, r) => s + pick(r), 0));
 
@@ -147,7 +143,6 @@ const downloadTemplate = (mode: ImportMode) =>
   exportExcel({ ...TEMPLATES[mode], rows: [] }).catch((e) => toast.fail(errorMessage(e, "Không tải được file mẫu")));
 
 const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
-  { key: "createdAt", label: "Ngày giờ", ...KHACH, width: 17, value: (r) => formatDateTime(r.createdAt) },
   { key: "receiptMonth", label: "Tháng biên lai", ...KHACH, width: 12, type: "text", value: (r) => monthText(r.receiptMonth) },
   { key: "customerName", label: "Họ và tên", ...KHACH, width: 26, transform: "name", value: (r) => r.customerName },
   { key: "idNumber", label: "Số CCCD", ...KHACH, width: 15, type: "text", value: (r) => r.idNumber ?? "" },
@@ -236,13 +231,9 @@ export default function SocialInsuranceScreen() {
     const kind = SocialInsuranceKind.safeParse(searchParams.get("kind"));
     const plan = SocialInsurancePlan.safeParse(searchParams.get("plan"));
     const status = ReconcileStatus.safeParse(searchParams.get("status"));
-    const from = searchParams.get("from") ?? "";
-    const to = searchParams.get("to") ?? "";
-    const range = isRealIsoDate(from)
-      ? { from, to: isRealIsoDate(to) ? to : "" }
-      : { from: `${businessMonth()}-01`, to: businessDay() };
+    const month = searchParams.get("month") ?? "";
     return {
-      ...range,
+      month: /^\d{4}-\d{2}$/.test(month) ? month : "",
       kind: kind.success ? kind.data : "",
       plan: plan.success ? plan.data : "",
       collaboratorId: searchParams.get("collaboratorId") ?? "",
@@ -290,11 +281,11 @@ export default function SocialInsuranceScreen() {
 
   const { data = EMPTY, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["social-insurance", "list", query, page, dir],
-    queryFn: () => fetchSocialInsurance({ ...query, page, sort: "createdAt", dir }),
+    queryFn: () => fetchSocialInsurance({ ...query, page, sort: "receiptMonth", dir }),
     placeholderData: keepPreviousData,
   });
 
-  const activeCount = Object.entries(filters).filter(([key, value]) => key !== "to" && value).length;
+  const activeCount = Object.values(filters).filter(Boolean).length;
   const filtering = Boolean(searchQuery) || activeCount > 0;
 
   const queryClient = useQueryClient();
@@ -337,7 +328,7 @@ export default function SocialInsuranceScreen() {
   const hasActions = can(user, "social-insurance", "update") || can(user, "social-insurance", "delete");
 
   const columns: RankColumn<SocialInsuranceRow>[] = [
-    { key: "createdAt", label: "Ngày giờ", sortable: true, render: (r) => formatDateTime(r.createdAt) },
+    { key: "receiptMonth", label: "Tháng biên lai", sortable: true, render: (r) => monthText(r.receiptMonth) },
     {
       key: "customerName",
       label: "Khách hàng",
@@ -499,8 +490,7 @@ export default function SocialInsuranceScreen() {
           activeCount={activeCount}
           onClear={() =>
             refine({
-              from: "",
-              to: "",
+              month: "",
               kind: "",
               plan: "",
               collaboratorId: "",
@@ -510,13 +500,8 @@ export default function SocialInsuranceScreen() {
             })
           }
         >
-          <FilterField id="date" label="Khoảng ngày" count={filters.from ? 1 : 0}>
-            <DateRangePicker
-              hideLabel
-              label="Khoảng ngày"
-              value={filters.from ? { from: dateOf(filters.from), to: dateOf(filters.to) } : undefined}
-              onChange={(v) => refine({ from: v?.from ? iso(v.from) : "", to: v?.to ? iso(v.to) : "" })}
-            />
+          <FilterField id="month" label="Tháng biên lai" count={filters.month ? 1 : 0}>
+            <MonthChoice label="Tháng biên lai" value={filters.month} onChange={(v) => refine({ month: v })} />
           </FilterField>
           <FilterField id="kind" label="Loại" count={filters.kind ? 1 : 0}>
             <FilterChoices
@@ -638,14 +623,7 @@ export default function SocialInsuranceScreen() {
       <main className={styles.body}>
         <FilterChips
           chips={[
-            ...(filters.from
-              ? [
-                  {
-                    label: `Ngày: ${formatDate(filters.from)} → ${formatDate(filters.to || filters.from)}`,
-                    onRemove: () => refine({ from: "", to: "" }),
-                  },
-                ]
-              : []),
+            ...chip("month", `Tháng biên lai: ${filters.month ? monthText(filters.month) : ""}`),
             ...chip("kind", `Loại: ${filters.kind ? KIND_LABEL[filters.kind] : ""}`),
             ...chip("plan", `Phương án: ${filters.plan ? PLAN_LABEL[filters.plan] : ""}`),
             ...chip("collaboratorId", `CTV: ${nameOf(options?.collaborators, filters.collaboratorId)}`),
@@ -675,11 +653,11 @@ export default function SocialInsuranceScreen() {
                 rows={data.rows}
                 columns={columns}
                 rowKey={(r) => r.id}
-                defaultSort="createdAt"
-                caption="Hồ sơ theo ngày tải file"
+                defaultSort="receiptMonth"
+                caption="Hồ sơ theo tháng biên lai"
                 emptyText={filtering ? "Không có hồ sơ nào khớp bộ lọc." : "Chưa nhập file nào."}
                 server={{
-                  sort: "createdAt",
+                  sort: "receiptMonth",
                   dir,
                   page,
                   total: data.total,

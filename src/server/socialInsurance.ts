@@ -20,8 +20,8 @@ import { applyRate, centsFromDecimal, decimalFromCents } from "@/lib/money";
 import { recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { searchTerms } from "@/lib/search";
 import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
-import { BUSINESS_TIMEZONE, businessDay, roundPoints } from "@/lib/format";
-import { isRealIsoDate, type User } from "@/lib/types";
+import { roundPoints } from "@/lib/format";
+import type { User } from "@/lib/types";
 import { isUuid, uuidParam } from "./auth";
 import { closedMonthAmong, closedMonthMessage } from "./closedMonths";
 import { db } from "./db/client";
@@ -35,6 +35,7 @@ import {
   dataEntryTypeId,
   lockSocialInsurance,
   monthLabel,
+  entryServiceDate,
   recomputeEntryStaff,
   recomputeUploader,
   recordScopeWhere,
@@ -64,8 +65,7 @@ export const socialInsuranceFiltersFrom = (params: URLSearchParams): SocialInsur
   const status = ReconcileStatus.safeParse(params.get("status"));
   return {
     search: params.get("search") ?? "",
-    from: params.get("from") ?? "",
-    to: params.get("to") ?? "",
+    month: /^\d{4}-\d{2}$/.test(params.get("month") ?? "") ? params.get("month")! : "",
     kind: kind.success ? kind.data : "",
     plan: plan.success ? plan.data : "",
     collaboratorId: uuidParam(params.get("collaboratorId")),
@@ -109,13 +109,7 @@ const filtersWhere = (visible: RecordVisibility, q: SocialInsuranceFilters): SQL
   const parts = [
     recordScopeWhere(visible),
     searchWhere(q.search),
-    // So trên cột gốc theo giờ Việt Nam để dùng được chỉ mục, cùng cách màn VNeID.
-    isRealIsoDate(q.from)
-      ? sql`${r.createdAt} >= ((${q.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`
-      : undefined,
-    isRealIsoDate(q.to)
-      ? sql`${r.createdAt} < ((${q.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`
-      : undefined,
+    q.month ? eq(r.receiptMonth, q.month) : undefined,
     q.kind ? eq(r.kind, q.kind) : undefined,
     q.plan ? eq(r.plan, q.plan) : undefined,
     q.collaboratorId ? eq(r.collaboratorId, q.collaboratorId) : undefined,
@@ -192,7 +186,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       uploaderCode: uploader.staffCode,
       uploaderTitle: uploader.title,
       uploaderDepartmentName: uploaderDepartment.name,
-      // Tháng biên lai giữ điểm An Sinh, tháng tải file giữ lượt nhập liệu: một trong hai đã chốt là khoá.
+      // Tháng biên lai giữ điểm An Sinh, tháng của lượt nhập liệu giữ điểm ATM: một trong hai đã chốt là khoá.
       monthClosed: sql<boolean>`exists (
         select 1 from salary_closings sc
         where sc.year_month in (${page.receiptMonth}, to_char(${services.serviceDate}, 'YYYY-MM'))
@@ -208,13 +202,13 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     .leftJoin(uploaderDepartment, eq(uploaderDepartment.id, page.uploadedByDepartmentId))
     .leftJoin(collaborators, eq(collaborators.id, page.collaboratorId));
 
-/** `id` đứng cuối để hai hồ sơ cùng giờ tải không đổi chỗ giữa các trang. */
-const orderOf = (t: { at: SQLWrapper; id: SQLWrapper }, dir: "asc" | "desc"): SQL[] =>
-  dir === "asc" ? [asc(t.at), asc(t.id)] : [desc(t.at), asc(t.id)];
+/** Khớp chỉ mục `social_insurance_records_month`. `id` đứng cuối để hai hồ sơ cùng giờ tải không đổi chỗ giữa các trang. */
+const orderOf = (t: { month: SQLWrapper; at: SQLWrapper; id: SQLWrapper }, dir: "asc" | "desc"): SQL[] =>
+  dir === "asc" ? [asc(t.month), asc(t.at), asc(t.id)] : [desc(t.month), desc(t.at), asc(t.id)];
 
 const orderedPage = (where: SQL | undefined, dir: "asc" | "desc", limit: number, offset: number) => {
-  const page = pickPage(where, orderOf({ at: r.createdAt, id: r.id }, dir), limit, offset);
-  return decorate(page).orderBy(...orderOf({ at: page.createdAt, id: page.id }, dir));
+  const page = pickPage(where, orderOf({ month: r.receiptMonth, at: r.createdAt, id: r.id }, dir), limit, offset);
+  return decorate(page).orderBy(...orderOf({ month: page.receiptMonth, at: page.createdAt, id: page.id }, dir));
 };
 
 type Decorated = Awaited<ReturnType<typeof orderedPage>>[number];
@@ -445,8 +439,8 @@ async function lockedRecord(tx: Conn, id: string) {
  * Sửa một dòng bằng đúng luật kiểm của file 1. Khách và loại không đổi được:
  * đổi chúng thì xoá dòng rồi nhập lại. Đổi nhân viên nhập liệu thì lượt nhập
  * liệu chuyển sang người mới, và điểm của cả hai người được tính lại. Bỏ trống
- * nhân viên thì xoá lượt; chọn nhân viên cho dòng chưa có thì sinh lượt theo
- * ngày tải file.
+ * nhân viên thì xoá lượt; chọn nhân viên cho dòng chưa có thì sinh lượt. Lượt
+ * khác tháng biên lai thì dời về tháng biên lai theo `entryServiceDate`.
  *
  * `null` = không có HOẶC ngoài phạm vi, route trả 404 giống nhau.
  */
@@ -458,7 +452,7 @@ export async function updateSocialInsurance(
   const outcome = await db.transaction(async (tx): Promise<
     | null
     | { ok: false; message: string; fieldErrors?: FormErrors }
-    | { ok: true; staffIds: string[]; serviceDate: string; uploaderId: string; receiptMonths: string[] }
+    | { ok: true; staffIds: string[]; serviceDates: string[]; uploaderId: string; receiptMonths: string[] }
   > => {
     await lockSocialInsurance(tx);
     const current = await lockedRecord(tx, id);
@@ -469,9 +463,8 @@ export async function updateSocialInsurance(
     if (form.entryStaffId && !keepStaffText && !staff)
       return { ok: false, message: STAFF_MISSING, fieldErrors: { entryStaffId: STAFF_MISSING } };
 
-    const serviceDate = current.serviceDate ?? businessDay(current.createdAt);
-    // Dòng không có lượt và vẫn không có nhân viên thì tháng tải file không liên quan.
-    const serviceMonths = current.serviceId || staff ? [serviceDate.slice(0, 7)] : [];
+    // Tháng mới của lượt là tháng biên lai, `checkEntry` đã kiểm chốt lương cho tháng đó.
+    const serviceMonths = current.serviceDate ? [current.serviceDate.slice(0, 7)] : [];
     const months = [current.receiptMonth, form.receiptMonth];
     // `checkEntry` tra nhân viên theo mã của file 1; form đã chọn sẵn nhân viên nên đưa vào dưới một khoá cố định.
     const chosen = "CHOSEN";
@@ -515,6 +508,12 @@ export async function updateSocialInsurance(
       return { ok: false, message, fieldErrors: { receiptMonth: message } };
     }
 
+    const serviceDate =
+      current.serviceDate && current.serviceDate.slice(0, 7) === entry.receiptMonth
+        ? current.serviceDate
+        : entryServiceDate(entry.receiptMonth);
+    const moved = serviceDate !== current.serviceDate;
+
     let serviceId = current.serviceId;
     if (!serviceId && staff) {
       const typeId = await dataEntryTypeId(current.kind, tx);
@@ -553,19 +552,19 @@ export async function updateSocialInsurance(
 
     // So với người đang giữ lượt dịch vụ, không so với cột của dòng: hai chỗ này lệch thì vẫn tính lại đúng người.
     const staffIds =
-      current.serviceStaffId === (staff?.id ?? null)
+      current.serviceStaffId === (staff?.id ?? null) && !moved
         ? []
         : [current.serviceStaffId, staff?.id].filter((v): v is string => Boolean(v));
     if (current.serviceId && !staff) await tx.delete(services).where(eq(services.id, current.serviceId));
     else if (current.serviceId && staff && staffIds.length > 0)
       await tx
         .update(services)
-        .set({ createdBy: staff.id, createdByDepartmentId: staff.departmentId })
+        .set({ createdBy: staff.id, createdByDepartmentId: staff.departmentId, serviceDate })
         .where(eq(services.id, current.serviceId));
     return {
       ok: true,
       staffIds,
-      serviceDate,
+      serviceDates: [current.serviceDate, serviceDate].filter((v): v is string => Boolean(v)),
       uploaderId: current.createdById,
       receiptMonths: [current.receiptMonth, entry.receiptMonth],
     };
@@ -573,7 +572,7 @@ export async function updateSocialInsurance(
 
   if (!outcome) return null;
   if (!outcome.ok) return outcome;
-  await recomputeEntryStaff(outcome.staffIds, outcome.serviceDate);
+  await recomputeEntryStaff(outcome.staffIds, outcome.serviceDates);
   await recomputeUploader(outcome.uploaderId, outcome.receiptMonths);
   return { ok: true, record: (await recordById(id))! };
 }
@@ -601,7 +600,7 @@ export async function deleteSocialInsurance(actor: User, id: string): Promise<Re
   if (!outcome) return null;
   if (!outcome.ok) return outcome;
   if (outcome.current.serviceStaffId && outcome.current.serviceDate)
-    await recomputeEntryStaff([outcome.current.serviceStaffId], outcome.current.serviceDate);
+    await recomputeEntryStaff([outcome.current.serviceStaffId], [outcome.current.serviceDate]);
   await recomputeUploader(outcome.current.createdById, [outcome.current.receiptMonth]);
   return { ok: true, record };
 }

@@ -570,11 +570,24 @@ async function checkRecords(
   return { preview, parsed };
 }
 
-/** Sau khi ghi hoặc xoá lượt nhập liệu: điểm dịch vụ và ngày công của nhân viên ATM. */
-export async function recomputeEntryStaff(staffIds: string[], serviceDate: string): Promise<void> {
+/**
+ * Ngày của lượt nhập liệu (chủ dự án chốt 2026-11-14): lượt thuộc tháng biên
+ * lai. Tải file trong chính tháng đó thì lấy ngày tải, khác tháng thì lấy ngày
+ * cuối của tháng biên lai.
+ */
+export function entryServiceDate(receiptMonth: string, today = businessDay()): string {
+  if (today.slice(0, 7) === receiptMonth) return today;
+  const [year, month] = receiptMonth.split("-").map(Number);
+  return `${receiptMonth}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Sau khi ghi, dời hoặc xoá lượt nhập liệu: điểm dịch vụ và ngày công của nhân viên ATM. */
+export async function recomputeEntryStaff(staffIds: string[], serviceDates: string[]): Promise<void> {
+  const dates = [...new Set(serviceDates)];
+  const months = new Set(dates.map((d) => d.slice(0, 7)));
   for (const staffId of new Set(staffIds)) {
-    await recomputeKpi(staffId, serviceDate.slice(0, 7));
-    await recomputeEmployeeWorkDay(staffId, serviceDate);
+    for (const month of months) await recomputeKpi(staffId, month);
+    for (const date of dates) await recomputeEmployeeWorkDay(staffId, date);
   }
 }
 
@@ -587,7 +600,7 @@ export async function recomputeUploader(uploaderId: string, receiptMonths: strin
  * Nhập file 1. `commit: false` chỉ kiểm. `commit: true` kiểm lại trong
  * transaction, có một dòng lỗi là từ chối cả file (chốt 2026-10-04).
  *
- * Lượt nhập liệu của nhân viên ATM lấy ngày tải file. Khách mới mang kênh ATM,
+ * Lượt nhập liệu của nhân viên ATM lấy ngày theo `entryServiceDate`. Khách mới mang kênh ATM,
  * không ngày sinh, người lập là nhân viên ATM ở cột NHẬP LIỆU. Xã ở cột ĐỊA CHỈ
  * phải có trong danh mục của tỉnh đã chọn.
  *
@@ -598,12 +611,10 @@ export async function importRecords(
   actor: User,
   request: RecordImportRequest,
 ): Promise<Outcome<RecordImportResult>> {
-  const serviceDate = businessDay();
+  const today = businessDay();
   const typeId = await dataEntryTypeId(request.kind, db);
   if (!typeId)
     return { ok: false, message: `Danh mục chưa có loại dịch vụ "${DATA_ENTRY_TYPE_NAME[request.kind]}".` };
-  const closedToday = await closedMonthAmong([serviceDate.slice(0, 7)]);
-  if (closedToday) return { ok: false, message: closedMonthMessage(closedToday) };
   const wardBook = await wardBookOf(request.provinceId, db);
   if (!wardBook) return { ok: false, message: "Không tìm thấy tỉnh/thành phố này." };
 
@@ -668,7 +679,7 @@ export async function importRecords(
               customerId: rootId,
               serviceTypeId: typeId,
               note: "",
-              serviceDate,
+              serviceDate: entryServiceDate(p.entry.receiptMonth, today),
               createdBy: staff.id,
               createdByDepartmentId: staff.departmentId,
               wardId: p.ward.id,
@@ -697,13 +708,14 @@ export async function importRecords(
       preview,
       written: parsed.length,
       staffIds: parsed.flatMap((p) => (p.entry.staff ? [p.entry.staff.id] : [])),
+      serviceDates: parsed.flatMap((p) => (p.entry.staff ? [entryServiceDate(p.entry.receiptMonth, today)] : [])),
       receiptMonths: parsed.map((p) => p.entry.receiptMonth),
     };
   });
 
   if (!outcome.ok)
     return { ok: false, message: `File còn ${outcome.errorRows} dòng lỗi.` };
-  await recomputeEntryStaff(outcome.staffIds, serviceDate);
+  await recomputeEntryStaff(outcome.staffIds, outcome.serviceDates);
   await recomputeUploader(actor.id, outcome.receiptMonths);
   return { ok: true, result: { rows: outcome.preview, written: outcome.written } };
 }
