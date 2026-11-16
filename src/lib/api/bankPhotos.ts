@@ -13,7 +13,7 @@ import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 export const BankPhoto = z.object({
   id: z.string(),
   url: z.string(),
-  kind: z.enum(['opening', 'transaction']),
+  kind: z.enum(['opening', 'transaction', 'gift']),
 });
 export type BankPhoto = z.infer<typeof BankPhoto>;
 

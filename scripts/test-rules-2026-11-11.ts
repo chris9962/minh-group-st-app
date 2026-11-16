@@ -1,7 +1,7 @@
 /**
  * Ca thử cho kỳ luật **2026-11-11**, chạy cùng `bun run test:rules`.
  *
- * Chỉ thử điểm KHÁC kỳ 2026-11-01: ví ShopeePay cộng 0,5 và có suất quà thêm
+ * Chỉ thử điểm KHÁC kỳ 2026-11-01: ví ShopeePay cộng 0,4 và có suất quà thêm
  * riêng, bank hạn chế kèm ShopeePay vào Combo 1. Phần không đổi đã có ca ở
  * `test-rules-2026-11-01.ts` và các kỳ trước.
  */
@@ -45,7 +45,7 @@ function section(title: string): void {
 const account = (
   customerId: string,
   bankCode: string,
-  opts: { date?: string; household?: HouseholdKind; departmentCode?: string | null } = {},
+  opts: { date?: string; household?: HouseholdKind; departmentCode?: string | null; giftPhoto?: boolean } = {},
 ): ScoringAccount => ({
   customerId,
   bankCode,
@@ -53,6 +53,7 @@ const account = (
   openedDate: opts.date ?? AT,
   household: opts.household ?? "none",
   departmentCode: opts.departmentCode ?? null,
+  giftPhoto: opts.giftPhoto ?? false,
 });
 
 const accountsOf = (codes: string[], date = AT, departmentCode: string | null = null) =>
@@ -77,33 +78,33 @@ check("điểm tổ hợp MB + ShopeePay = 0,3", comboPointsAt(["MB", SP], AT), 
 check("MB + ShopeePay không đếm thưởng combo", multiBankComboCountFor(accountsOf(["MB", SP]), "2026-11"), 0);
 check("MB + TPB + ShopeePay đếm 1 thưởng combo", multiBankComboCountFor(accountsOf(["MB", "TPB", SP]), "2026-11"), 1);
 
-section("ShopeePay cộng 0,5");
-check("MB + ShopeePay = 0,8", points(accountsOf(["MB", SP])), 0.8);
-check("SHB + ShopeePay = 0,7", points(accountsOf(["SHB", SP])), 0.7);
-check("MB + TPB + ShopeePay = 1,2", points(accountsOf(["MB", "TPB", SP])), 1.2);
-check("MB + TPB + MSBa + ShopeePay = 1,7", points(accountsOf(["MB", "TPB", "MSBa", SP])), 1.7);
-check("phần điểm ngoài tổ hợp của MB + ShopeePay = 0,5", householdPointsAt(accountsOf(["MB", SP]), AT), 0.5);
+section("ShopeePay cộng 0,4");
+check("MB + ShopeePay = 0,7", points(accountsOf(["MB", SP])), 0.7);
+check("SHB + ShopeePay = 0,6", points(accountsOf(["SHB", SP])), 0.6);
+check("MB + TPB + ShopeePay = 1,1", points(accountsOf(["MB", "TPB", SP])), 1.1);
+check("MB + TPB + MSBa + ShopeePay = 1,6", points(accountsOf(["MB", "TPB", "MSBa", SP])), 1.6);
+check("phần điểm ngoài tổ hợp của MB + ShopeePay = 0,4", householdPointsAt(accountsOf(["MB", SP]), AT), 0.4);
 check(
-  "MB + VPa HKD + ShopeePay = 3,8",
+  "MB + VPa HKD + ShopeePay = 3,7",
   points([account("k", "MB"), account("k", "VPa", { household: "HKD" }), account("k", SP)]),
-  3.8,
+  3.7,
 );
 check(
-  "MB CNKD + ShopeePay = 1,8",
+  "MB CNKD + ShopeePay = 1,7",
   points([account("k", "MB", { household: "CNKD" }), account("k", SP)]),
-  1.8,
+  1.7,
 );
-check("VPa + MB + ShopeePay: tổ hợp 0, ShopeePay 0,5", points(accountsOf(["VPa", "MB", SP])), 0.5);
+check("VPa + MB + ShopeePay: tổ hợp 0, ShopeePay 0,4", points(accountsOf(["VPa", "MB", SP])), 0.4);
 check("VPa + VPb + ShopeePay: hồ sơ sai, 0 điểm", points(accountsOf(["VPa", "VPb", SP])), 0);
-check("TCB + ShopeePay: TCB ngoài thể lệ, ShopeePay 0,5", points(accountsOf(["TCB", SP])), 0.5);
+check("TCB + ShopeePay: TCB ngoài thể lệ, ShopeePay 0,4", points(accountsOf(["TCB", SP])), 0.4);
 check(
-  "hai khách: MB + ShopeePay và TPB = 1,1",
+  "hai khách: MB + ShopeePay và TPB = 1,0",
   points([account("a", "MB"), account("a", SP), account("b", "TPB")]),
-  1.1,
+  1,
 );
 
 section("ShopeePay mở một mình");
-check("chỉ ShopeePay = 0,5", points(accountsOf([SP])), 0.5);
+check("chỉ ShopeePay = 0,4", points(accountsOf([SP])), 0.4);
 check("chỉ ShopeePay: một suất quà thêm", gift(accountsOf([SP])).extraBanks?.join(","), SP);
 check(
   "chỉ ShopeePay: rổ quà thêm là món ShopeePay",
@@ -114,39 +115,75 @@ check("chỉ ShopeePay: không có quà chính", gift(accountsOf([SP])).basket.l
 check("chỉ ShopeePay: không tiền mặt", gift(accountsOf([SP])).cash.length, 0);
 check("chỉ ShopeePay: mở được", openBlockReasonAt([], SP, AT), null);
 check(
-  "ShopeePay + chỉ dòng VPa HKD = 3,5",
+  "ShopeePay + chỉ dòng VPa HKD = 3,4",
   points([account("k", "VPa", { household: "HKD" }), account("k", SP)]),
-  3.5,
+  3.4,
 );
 check(
-  "MB + ShopeePay, MB bị đánh lỗi: ShopeePay còn 0,5",
+  "MB + ShopeePay, MB bị đánh lỗi: ShopeePay còn 0,4",
   points([account("k", SP)], [account("k", "MB")]),
-  0.5,
+  0.4,
 );
 check(
-  "MB + TPB + ShopeePay, TPB bị đánh lỗi: Combo 2 về 0, ShopeePay còn 0,5",
+  "MB + TPB + ShopeePay, TPB bị đánh lỗi: Combo 2 về 0, ShopeePay còn 0,4",
   points([account("k", "MB"), account("k", SP)], [account("k", "TPB")]),
-  0.5,
+  0.4,
+);
+
+section("ShopeePay có ảnh khách nhận quà cộng thêm 0,2");
+const spWithPhoto = (customerId = "k") => account(customerId, SP, { giftPhoto: true });
+check("chỉ ShopeePay có ảnh = 0,6", points([spWithPhoto()]), 0.6);
+check("MB + ShopeePay có ảnh = 0,9", points([account("k", "MB"), spWithPhoto()]), 0.9);
+check(
+  "phần điểm ngoài tổ hợp của MB + ShopeePay có ảnh = 0,6",
+  householdPointsAt([account("k", "MB"), spWithPhoto()], AT),
+  0.6,
+);
+check(
+  "MB có ảnh nhận quà, ShopeePay chưa có: ShopeePay vẫn 0,4",
+  points([account("k", "MB", { giftPhoto: true }), account("k", SP)]),
+  0.7,
+);
+check(
+  "MB CNKD + ShopeePay có ảnh = 1,9",
+  points([account("k", "MB", { household: "CNKD" }), spWithPhoto()]),
+  1.9,
+);
+check("VPa + VPb + ShopeePay có ảnh: hồ sơ sai, 0 điểm", points([account("k", "VPa"), account("k", "VPb"), spWithPhoto()]), 0);
+check(
+  "MB + TPB + ShopeePay có ảnh, TPB bị đánh lỗi: ShopeePay còn 0,6",
+  points([account("k", "MB"), spWithPhoto()], [account("k", "TPB")]),
+  0.6,
+);
+check(
+  "hai khách: ShopeePay có ảnh và ShopeePay chưa có = 1,0",
+  points([spWithPhoto("a"), account("b", SP)]),
+  1,
+);
+check(
+  "hồ sơ ngày 10/11 theo kỳ 2026-11-01: ảnh nhận quà không cộng",
+  points([account("k", "MB", { date: "2026-11-10" }), account("k", SP, { date: "2026-11-10", giftPhoto: true })]),
+  points([account("k", "MB", { date: "2026-11-10" }), account("k", SP, { date: "2026-11-10" })]),
 );
 
 section("Phòng Y: ShopeePay không thành Combo 2");
-check("Phòng Y, MB + ShopeePay = 0,8", points(accountsOf(["MB", SP], AT, PHONG_Y)), 0.8);
-check("Phòng Y, MB + TPB + ShopeePay = 1,3", points(accountsOf(["MB", "TPB", SP], AT, PHONG_Y)), 1.3);
+check("Phòng Y, MB + ShopeePay = 0,7", points(accountsOf(["MB", SP], AT, PHONG_Y)), 0.7);
+check("Phòng Y, MB + TPB + ShopeePay = 1,2", points(accountsOf(["MB", "TPB", SP], AT, PHONG_Y)), 1.2);
 
 /* ── Bank hạn chế kèm ShopeePay ─────────────────────────────────────── */
 
 section("Bank hạn chế kèm ShopeePay vào Combo 1");
 check("LPB một mình = 0", points(accountsOf(["LPB"])), 0);
-check("LPB + ShopeePay = 0,6", points(accountsOf(["LPB", SP])), 0.6);
-for (const code of ["BIDV", "MBV", "VIB"]) check(`${code} + ShopeePay = 0,6`, points(accountsOf([code, SP])), 0.6);
+check("LPB + ShopeePay = 0,5", points(accountsOf(["LPB", SP])), 0.5);
+for (const code of ["BIDV", "MBV", "VIB"]) check(`${code} + ShopeePay = 0,5`, points(accountsOf([code, SP])), 0.5);
 check("LPB + ShopeePay là Combo 1", winningComboSizeAt(accountsOf(["LPB", SP]), AT), 1);
 check("điểm tổ hợp LPB + ShopeePay = 0,1", comboPointsAt(["LPB", SP], AT), 0.1);
 check("LPB + BIDV = 0", points(accountsOf(["LPB", "BIDV"])), 0);
-check("LPB + BIDV + ShopeePay = 0,6", points(accountsOf(["LPB", "BIDV", SP])), 0.6);
-check("SHB + LPB + ShopeePay: Combo 1 của SHB, 0,7", points(accountsOf(["SHB", "LPB", SP])), 0.7);
-check("MB + LPB + ShopeePay: Combo 2 PR, 0,8", points(accountsOf(["MB", "LPB", SP])), 0.8);
+check("LPB + BIDV + ShopeePay = 0,5", points(accountsOf(["LPB", "BIDV", SP])), 0.5);
+check("SHB + LPB + ShopeePay: Combo 1 của SHB, 0,6", points(accountsOf(["SHB", "LPB", SP])), 0.6);
+check("MB + LPB + ShopeePay: Combo 2 PR, 0,7", points(accountsOf(["MB", "LPB", SP])), 0.7);
 check("MB + LPB + ShopeePay vẫn là Combo 2", winningComboSizeAt(accountsOf(["MB", "LPB", SP]), AT), 2);
-check("MB + LPB + BIDV + ShopeePay = 1,0", points(accountsOf(["MB", "LPB", "BIDV", SP])), 1);
+check("MB + LPB + BIDV + ShopeePay = 0,9", points(accountsOf(["MB", "LPB", "BIDV", SP])), 0.9);
 check("LPB + ShopeePay: quà TH1", gift(accountsOf(["LPB", SP])).caseCode, "TH1");
 check("LPB + ShopeePay: 01 năm BH", gift(accountsOf(["LPB", SP])).insuranceYears, 1);
 check("LPB một mình: không quà", gift(accountsOf(["LPB"])).caseCode, null);

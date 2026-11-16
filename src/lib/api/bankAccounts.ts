@@ -117,6 +117,8 @@ export const BankAccount = z.object({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản — đếm RIÊNG, không cộng vào `photoUrls`. */
   transactionPhotoUrls: z.array(z.string()),
+  /** Ảnh khách nhận quà, chỉ dòng ShopeePay có. Có ảnh thì ShopeePay được cộng thêm 0,2 điểm. */
+  giftPhotoUrls: z.array(z.string()),
   /** Mốc hoàn thành dùng để áp hạn xoá theo ngày cho cấp Trưởng/Phó phòng. */
   finishedAt: z.string(),
   /**
@@ -566,8 +568,8 @@ export async function deleteBankAccount(id: string, reason = ''): Promise<void> 
   if (!res.ok) throw await failure(res, 'Không xoá được tài khoản này');
 }
 
-/** Hai loại ảnh của một tài khoản, đếm tách nhau (spec §4.2 bước 3). */
-export type PhotoKind = 'opening' | 'transaction';
+/** Ba loại ảnh của một tài khoản, đếm tách nhau (spec §4.2 bước 3). `gift` chỉ dòng ShopeePay có. */
+export type PhotoKind = 'opening' | 'transaction' | 'gift';
 
 /**
  * Trần số ảnh MỖI NHÓM. Máy chủ chặn theo đúng con số này, giao diện cũng khoá
@@ -614,6 +616,7 @@ export const canEditOpeningPhotos = (
 const PHOTO_LABEL: Record<PhotoKind, string> = {
   opening: 'ảnh chứng minh',
   transaction: 'ảnh giao dịch',
+  gift: 'ảnh khách nhận quà',
 };
 
 /**

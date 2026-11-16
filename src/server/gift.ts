@@ -41,6 +41,7 @@ import { customerDayText } from "./customerDay";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { db } from "./db/client";
 import { OutOfStock, reserveStock, stockRemaining } from "./giftStock";
+import { giftPhotoSql } from "./giftPhoto";
 import { SKIP_REASON_BEFORE_GIFT, bankSkipReasonMissingOf } from "./bankSkipReason";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -94,6 +95,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
         // cột này thì luật không thấy ô chọn đó, và khách mất Loa + Bảng mica.
         accountType: bankAccounts.accountType,
         channelCode: channels.code,
+        giftPhoto: giftPhotoSql,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -119,6 +121,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       appInstalled: r.appInstalled,
       openedDate: r.openedDate ?? "",
       household: r.accountType,
+      giftPhoto: r.giftPhoto,
     })),
     // Nơi gọi biết món đã phát thì tự ghi đè — xem `giftResultOf`.
     grantedItem: null,
@@ -311,9 +314,10 @@ function householdNoteOf(points: number, grantedItem: string | null, at: string)
   }
   if (at < "2026-10-01") return points === 3 ? "HKD, dòng VPa HKD" : "CNKD";
   // CNKD 1,0 nhỏ hơn 3,0 của một HKD, nên phần dư chia 3 nói khách có CNKD.
-  // Chỉ ShopeePay mang nửa điểm (kỳ 2026-11-11), nên số lẻ 0,5 nói khách có ShopeePay.
-  const shopeePay = Math.round(points * 10) % 10 === 5;
-  const rest = shopeePay ? points - 0.5 : points;
+  // CNKD và HKD là số nguyên, chỉ ShopeePay (kỳ 2026-11-11: 0,4 hoặc 0,6) mang phần lẻ.
+  const tenths = Math.round(points * 10);
+  const shopeePay = tenths % 10 > 0;
+  const rest = Math.floor(tenths / 10);
   const hkd = Math.floor(rest / 3);
   const parts = hkd > 0 ? [`HKD, ${hkd} tài khoản`] : [];
   if (rest - hkd * 3 > 0) parts.push("CNKD");
@@ -454,6 +458,7 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
         // Không nắn theo ngân hàng: kho mã giới thiệu cho gắn CNKD/HKD vào mọi
         // ngân hàng, file luật từng kỳ tự quyết mã nào có nghĩa với ngân hàng nào.
         household: a.accountType,
+        giftPhoto: a.giftPhoto,
       })),
       channelCodes: input.channelCodes,
       departmentCode: input.departmentCode,
@@ -514,6 +519,7 @@ export async function recountGiftCases(
         openedDate: customerDayText,
         accountType: bankAccounts.accountType,
         channelCode: accountChannel.code,
+        giftPhoto: giftPhotoSql,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -531,6 +537,7 @@ export async function recountGiftCases(
         appInstalled: row.appInstalled,
         openedDate: row.openedDate ?? "",
         household: row.accountType,
+        giftPhoto: row.giftPhoto,
       });
       byCustomer.set(row.customerId, list);
 

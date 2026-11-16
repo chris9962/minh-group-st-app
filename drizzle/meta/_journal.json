@@ -1219,6 +1219,13 @@
       "when": 1789891400200,
       "tag": "0174_vpa_unqualified_detail",
       "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1789891400300,
+      "tag": "0175_photo_kind_gift",
+      "breakpoints": true
     }
   ]
 }

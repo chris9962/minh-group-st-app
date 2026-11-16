@@ -332,6 +332,13 @@ export default function BankAccountOfBankPage({
                 title="Ảnh giao dịch"
               />
             )}
+            {data.giftPhotoUrls.length > 0 && (
+              <BankAccountPhotos
+                photos={savedPhotos(data.giftPhotoUrls)}
+                requiredPhotos={0}
+                title="Ảnh khách nhận quà"
+              />
+            )}
           </SectionCard>
         )}
 

@@ -732,6 +732,13 @@ function DoneAccountCard({
           photos={savedPhotos(data.transactionPhotoUrls)}
         />
       )}
+      {isNonBankCode(data.bankCode) && (
+        <BankAccountPhotos
+          title="Ảnh khách nhận quà"
+          requiredPhotos={0}
+          photos={savedPhotos(data.giftPhotoUrls)}
+        />
+      )}
 
       {markingError && (
         <Dialog

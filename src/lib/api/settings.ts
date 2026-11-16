@@ -102,6 +102,8 @@ export const GiftSimulateAccount = z.object({
    * này vẫn chạy.
    */
   accountType: AccountType.default('none'),
+  /** Kỳ 2026-11-11 cộng thêm 0,2 cho ShopeePay có ảnh khách nhận quà; kỳ khác không đọc. */
+  giftPhoto: z.boolean().default(false),
 });
 export type GiftSimulateAccount = z.infer<typeof GiftSimulateAccount>;
 

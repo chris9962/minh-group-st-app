@@ -22,7 +22,9 @@ import type {
  * giữ nguyên:
  *
  *   A. Ví `ShopeePay`: không phải ngân hàng, không vào combo. Có ShopeePay thì
- *      cộng 0,5 điểm và một suất quà thêm riêng, mở một mình cũng tính.
+ *      cộng 0,4 điểm và một suất quà thêm riêng, mở một mình cũng tính. Dòng
+ *      ShopeePay có ảnh khách nhận quà thì cộng thêm 0,2 (chủ dự án chốt cả hai
+ *      mức 2026-11-16, sửa thẳng file kỳ này, áp cho mọi hồ sơ của kỳ).
  *   B. Bank hạn chế kèm `ShopeePay` vào được Combo 1, 0,1 điểm.
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-11-11.ts`).
@@ -67,11 +69,13 @@ const TIER_OF: Record<string, Tier> = {
  * có hạng, không vào combo, không đếm vào số ngân hàng, giống dòng HKD (chủ dự
  * án chốt 2026-11-10).
  *
- * Mở một mình được: 0,5 điểm và suất quà ShopeePay, không cần ngân hàng đi kèm
+ * Mở một mình được: 0,4 điểm và suất quà ShopeePay, không cần ngân hàng đi kèm
  * (chủ dự án đổi 2026-11-10, bỏ luật "không triển khai một mình" chốt cùng ngày).
+ * Mức 0,4 thay 0,5 từ 2026-11-16, áp cho mọi hồ sơ của kỳ.
  */
 export const SHOPEEPAY = "ShopeePay";
-const SHOPEEPAY_TENTHS = 5;
+const SHOPEEPAY_TENTHS = 4;
+const SHOPEEPAY_GIFT_PHOTO_BONUS_TENTHS = 2;
 /** Món duy nhất của suất quà thêm ShopeePay; suất HKD không chọn được món này. */
 const ITEMS_SHOPEEPAY = ["QUA-SHOPEEPAY"];
 
@@ -109,7 +113,8 @@ export const OPEN_NOTES: string[] = [
   "Không mở cả VPa lẫn VPb cho cùng một khách. Hồ sơ đó 0 điểm.",
   "CNKD kèm ngân hàng nào cũng cộng 1,0. Mỗi tài khoản HKD cộng 3,0, ngân hàng nào cũng được.",
   "Phòng Y: mỗi khách Combo 2, Combo 3 cộng thêm 0,1 điểm.",
-  "ShopeePay cộng 0,5 và có Combo quà tặng ShopeePay, mở một mình cũng tính.",
+  "ShopeePay cộng 0,4 và có Combo quà tặng ShopeePay, mở một mình cũng tính.",
+  "ShopeePay có ảnh khách nhận quà cộng thêm 0,2.",
 ];
 
 export function openBlockReason(existingBankCodes: string[], candidate: string): string | null {
@@ -381,7 +386,7 @@ const hasBothVpModes = (accounts: ScoringAccount[]): boolean =>
 
 /**
  * Phần điểm NGOÀI tổ hợp của MỘT khách: CNKD (mục 4b), 3,0 cho MỖI tài khoản
- * HKD, và 0,5 của ShopeePay. Không xét số ngân hàng, không xét tổ hợp thắng,
+ * HKD, và 0,4 của ShopeePay, cộng thêm 0,2 khi có ảnh khách nhận quà. Không xét số ngân hàng, không xét tổ hợp thắng,
  * không xét món khách đã nhận.
  *
  * CỘNG DỒN, chủ dự án chốt 2026-09-30: CNKD ở `MB` kèm HKD ở `VPa` ra 4,0. Kỳ
@@ -393,8 +398,14 @@ function householdTenths(accounts: ScoringAccount[]): number {
   return (
     hkdAccountCountOf(accounts) * HKD_TENTHS +
     (hasCnkd(accounts) ? CNKD_TENTHS : 0) +
-    (hasShopeePay(accounts) ? SHOPEEPAY_TENTHS : 0)
+    shopeePayTenths(accounts)
   );
+}
+
+function shopeePayTenths(accounts: ScoringAccount[]): number {
+  if (!hasShopeePay(accounts)) return 0;
+  const giftPhoto = accounts.some((a) => a.bankCode === SHOPEEPAY && a.giftPhoto);
+  return SHOPEEPAY_TENTHS + (giftPhoto ? SHOPEEPAY_GIFT_PHOTO_BONUS_TENTHS : 0);
 }
 
 /**
@@ -709,7 +720,9 @@ export function gift(input: GiftInput): GiftResult {
   if (shopeePay) {
     addItems(extraBasket, ITEMS_SHOPEEPAY, "Khách có ShopeePay");
     explain.push(
-      "Khách có ShopeePay nên cộng 0,5 điểm và được Combo quà tặng ShopeePay, cộng với quà chính nếu có.",
+      input.accounts.some((a) => a.bankCode === SHOPEEPAY && a.giftPhoto)
+        ? "Khách có ShopeePay và ảnh nhận quà nên cộng 0,6 điểm và được Combo quà tặng ShopeePay, cộng với quà chính nếu có."
+        : "Khách có ShopeePay nên cộng 0,4 điểm và được Combo quà tặng ShopeePay, cộng với quà chính nếu có.",
     );
   }
 

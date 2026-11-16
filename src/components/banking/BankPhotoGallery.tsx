@@ -16,11 +16,18 @@ import {
   downloadBankPhotoZip,
   fetchBankPhotos,
   PHOTO_SELECT_LIMIT,
+  type BankPhoto,
 } from "@/lib/api/bankPhotos";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
 import { formatDate } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./BankPhotoGallery.module.scss";
+
+const PHOTO_KIND_TEXT: Record<BankPhoto["kind"], string> = {
+  opening: "mở tài khoản",
+  transaction: "giao dịch",
+  gift: "khách nhận quà",
+};
 
 type Filters = {
   /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
@@ -127,7 +134,7 @@ export function BankPhotoGallery({
     row.photos.map((photo) => ({
       photo,
       row,
-      alt: `Ảnh ${photo.kind === "transaction" ? "giao dịch" : "mở tài khoản"} · ${row.customerName}`,
+      alt: `Ảnh ${PHOTO_KIND_TEXT[photo.kind]} · ${row.customerName}`,
     })),
   );
 
@@ -220,6 +227,9 @@ export function BankPhotoGallery({
                   )}
                   {photo.kind === "transaction" && (
                     <span className={styles.kindTag}>Giao dịch</span>
+                  )}
+                  {photo.kind === "gift" && (
+                    <span className={styles.kindTag}>Nhận quà</span>
                   )}
                   <button
                     type="button"

@@ -27,7 +27,8 @@ import { imageKeyOf, isImageRef } from "@/server/storage";
  * chung một đường), không phải một lệnh "thêm vào".
  *
  * `kind` chọn nhóm ảnh: `opening` là ảnh chứng minh của bước 2, `transaction`
- * là ảnh chuyển khoản của bước 3. Mỗi lượt ghi chỉ đụng đúng nhóm của nó.
+ * là ảnh chuyển khoản của bước 3, `gift` là ảnh khách nhận quà của dòng
+ * ShopeePay. Mỗi lượt ghi chỉ đụng đúng nhóm của nó.
  */
 const Body = z.object({
   /**
@@ -42,10 +43,14 @@ const Body = z.object({
     .max(PHOTO_MAX),
   // Mặc định `opening` để bản client cũ còn gọi được — nhóm này là nhóm có
   // chốt số lượng, tức mặc định nghiêm hơn, không phải lỏng hơn.
-  kind: z.enum(["opening", "transaction"]).default("opening"),
+  kind: z.enum(["opening", "transaction", "gift"]).default("opening"),
 });
 
-const PHOTO_LABEL = { opening: "Ảnh chứng minh", transaction: "Ảnh giao dịch" } as const;
+const PHOTO_LABEL = {
+  opening: "Ảnh chứng minh",
+  transaction: "Ảnh giao dịch",
+  gift: "Ảnh khách nhận quà",
+} as const;
 
 export async function PATCH(
   request: Request,
@@ -68,6 +73,8 @@ export async function PATCH(
     return Response.json({ message: closedMonthMessage(account.closedMonth) }, { status: 422 });
   if ("errorLocked" in account)
     return Response.json({ message: ERROR_LOCKED_MESSAGE }, { status: 422 });
+  if ("giftNotShopeePay" in account)
+    return Response.json({ message: "Chỉ tài khoản ShopeePay có ảnh khách nhận quà." }, { status: 422 });
   // Hết ngày hoàn thành thì ảnh chứng minh chốt lại (spec §4.7). Nói luôn ai
   // sửa hộ được, không để người dùng đi hỏi vòng.
   if ("locked" in account)
@@ -88,8 +95,11 @@ export async function PATCH(
       { status: 422 },
     );
 
-  const kept =
-    kind === "opening" ? account.photoUrls.length : account.transactionPhotoUrls.length;
+  const kept = {
+    opening: account.photoUrls,
+    transaction: account.transactionPhotoUrls,
+    gift: account.giftPhotoUrls,
+  }[kind].length;
   await logAudit(actor, {
     module: "banking",
     action: "update",

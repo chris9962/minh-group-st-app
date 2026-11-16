@@ -19,6 +19,7 @@ import {
   setBankAccountPhotos,
   updateBankAccount,
   isNonBankCode,
+  PHOTO_MAX,
 } from "@/lib/api/bankAccounts";
 import { BankAccountTransaction } from "./BankAccountTransaction";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
@@ -29,6 +30,7 @@ import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
 import {
+  BankAccountPhotos,
   photosChanged,
   savedPhotos,
   uploadPendingPhotos,
@@ -145,6 +147,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const [editedTransactionPhotos, setEditedTransactionPhotos] = useState<PhotoItem[] | null>(null);
   const transactionPhotos =
     editedTransactionPhotos ?? savedPhotos(data?.transactionPhotoUrls ?? []);
+  const [editedGiftPhotos, setEditedGiftPhotos] = useState<PhotoItem[] | null>(null);
+  const giftPhotos = editedGiftPhotos ?? savedPhotos(data?.giftPhotoUrls ?? []);
 
   /**
    * Ảnh đi trước, bản ghi đi sau — và phải ĐỦ CẢ HAI mới coi là xong.
@@ -175,6 +179,11 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       const urls = await uploadPendingPhotos(transactionPhotos);
       await setBankAccountPhotos(accountId, urls, "transaction");
       setEditedTransactionPhotos(savedPhotos(urls));
+    }
+    if (photosChanged(giftPhotos, data?.giftPhotoUrls ?? [])) {
+      const urls = await uploadPendingPhotos(giftPhotos);
+      await setBankAccountPhotos(accountId, urls, "gift");
+      setEditedGiftPhotos(savedPhotos(urls));
     }
     return run();
   };
@@ -322,6 +331,16 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
               onDateChange={setEditedTransactionAt}
               photos={transactionPhotos}
               onPhotosChange={setEditedTransactionPhotos}
+              busy={busy}
+            />
+          )}
+          {!draft && isNonBankCode(data.bankCode) && (
+            <BankAccountPhotos
+              title="Ảnh khách nhận quà"
+              requiredPhotos={0}
+              max={PHOTO_MAX}
+              photos={giftPhotos}
+              onChange={setEditedGiftPhotos}
               busy={busy}
             />
           )}

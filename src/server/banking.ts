@@ -1323,6 +1323,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    giftPhotoUrls: await photoUrlsOf(id, "gift"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
     customerPhones: await customerPhoneNumbers(r.customerId),
     status: r.status,
@@ -1382,6 +1383,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(r.id, "transaction"),
+    giftPhotoUrls: await photoUrlsOf(r.id, "gift"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
     lastErrorAt: r.lastErrorAt?.toISOString() ?? "",
     createdAt: r.createdAt.toISOString(),
@@ -2724,6 +2726,9 @@ export async function deleteAccount(
  * `kind` khoanh vùng cả lượt xoá lẫn lượt chèn. Không khoanh thì nộp ảnh giao
  * dịch sẽ xoá sạch ảnh chứng minh của bước 2, và bản ghi `done` nằm lại với 0
  * ảnh bắt buộc mà không đường nào phát hiện.
+ *
+ * Ảnh `gift` chỉ có ở dòng ShopeePay và vào điểm KPI: kỳ 2026-11-11 cộng thêm
+ * 0,2 khi có ảnh (chốt 2026-11-16), nên ghi xong phải tính lại điểm.
  */
 export async function setPhotos(
   actor: User,
@@ -2732,13 +2737,20 @@ export async function setPhotos(
   photoKeys: string[],
   kind: PhotoKind,
 ): Promise<
-  BankAccount | { tooFew: number } | { locked: true } | { errorLocked: true } | { closedMonth: string } | null
+  | BankAccount
+  | { tooFew: number }
+  | { locked: true }
+  | { errorLocked: true }
+  | { closedMonth: string }
+  | { giftNotShopeePay: true }
+  | null
 > {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
+  if (kind === "gift" && !isNonBankCode(current.bankCode)) return { giftNotShopeePay: true } as const;
 
   const closedMonth = await closedMonthOfCustomer(current.customerId);
   if (closedMonth) return { closedMonth } as const;
@@ -2800,10 +2812,12 @@ export async function setPhotos(
         photoKeys.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
     // Ảnh đổi là kết quả kiểm cũ hết đúng. Bản `creating` thì hàm này tự bỏ qua.
-    await enqueuePhotoCheck(tx, id);
+    // Bộ kiểm chỉ đọc ảnh chứng minh, nên đổi ảnh nhận quà không phải kiểm lại.
+    if (kind !== "gift") await enqueuePhotoCheck(tx, id);
   });
 
   if (rejected) return rejected;
+  if (kind === "gift" && current.status === "done") await recomputeKpiForCustomer(current.customerId);
 
   return accountById(id);
 }

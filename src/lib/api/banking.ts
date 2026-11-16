@@ -96,6 +96,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản. Đếm RIÊNG, không cộng vào `requiredPhotos`. */
   transactionPhotoUrls: z.array(z.string()),
+  /** Ảnh khách nhận quà, chỉ dòng ShopeePay có. */
+  giftPhotoUrls: z.array(z.string()),
   /**
    * Lúc bấm Hoàn thành, dạng ISO; `''` = chưa hoàn thành hoặc bản ghi cũ chưa
    * ghi mốc. Mốc tính cửa sổ sửa ảnh chứng minh — xem `canEditOpeningPhotos`.

@@ -69,6 +69,12 @@ const hkdScores = (bankCode: string, at: string): boolean =>
     at,
   ) > 0;
 
+/** Tra từ luật như `hkdScores`: chỉ kỳ có cộng điểm ảnh nhận quà mới hiện ô tick. */
+const giftPhotoScores = (bankCode: string, at: string): boolean => {
+  const account = { customerId: "simulate", bankCode, appInstalled: true, openedDate: at, household: "none" as const };
+  return householdPointsAt([{ ...account, giftPhoto: true }], at) > householdPointsAt([account], at);
+};
+
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
@@ -87,6 +93,7 @@ const hkdScores = (bankCode: string, at: string): boolean =>
 export function RuleSimulator() {
   const [opened, setOpened] = useState<string[]>([]);
   const [apps, setApps] = useState<string[]>([]);
+  const [giftPhotos, setGiftPhotos] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
   const [department, setDepartment] = useState("");
   /**
@@ -122,11 +129,13 @@ export function RuleSimulator() {
         bankCode,
         appInstalled: apps.includes(bankCode),
         accountType: accountTypes[bankCode] ?? ("none" as AccountType),
+        giftPhoto: giftPhotos.includes(bankCode),
       })),
       ...hkdPicked.map((bankCode) => ({
         bankCode,
         appInstalled: apps.includes(bankCode),
         accountType: "HKD" as AccountType,
+        giftPhoto: false,
       })),
     ],
     channelCodes: channel ? [channel] : [],
@@ -173,6 +182,9 @@ export function RuleSimulator() {
 
   const toggleApp = (bank: string) =>
     setApps((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
+
+  const toggleGiftPhoto = (bank: string) =>
+    setGiftPhotos((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
 
   /**
    * Hai phần cấu thành tổng điểm, gộp thành MỘT dòng phụ dưới con số tổng.
@@ -300,6 +312,18 @@ export function RuleSimulator() {
                         checked={apps.includes(bank.code)}
                         onCheckedChange={() => toggleApp(bank.code)}
                       />
+                      {giftPhotoScores(bank.code, ruleAt) && (
+                        <Checkbox
+                          label={
+                            <>
+                              <span className="sr-only">{bank.code} </span>
+                              có ảnh khách nhận quà
+                            </>
+                          }
+                          checked={giftPhotos.includes(bank.code)}
+                          onCheckedChange={() => toggleGiftPhoto(bank.code)}
+                        />
+                      )}
                       <div className={styles.bankType}>
                         <Select
                           block

@@ -33,6 +33,7 @@ import { extraItemsSql, grantedLabel } from "./gift";
 import { BROKEN_STATUSES } from "./kpi";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
+import { giftPhotoSql } from "./giftPhoto";
 import {
   bankAccounts,
   bankSkipReasons,
@@ -158,6 +159,7 @@ type AccountRow = {
   appInstalled: boolean;
   accountType: "none" | "CNKD" | "HKD";
   createdBy: string | null;
+  giftPhoto: boolean;
 };
 
 /**
@@ -387,6 +389,7 @@ export async function listScoringExport(
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       createdBy: bankAccounts.createdBy,
+      giftPhoto: giftPhotoSql,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -537,6 +540,7 @@ export async function listScoringExport(
       openedDate: a.openedDate ?? "",
       household: a.accountType,
       departmentCode: customer?.departmentCode ?? null,
+      giftPhoto: a.giftPhoto,
     }));
     // Cùng ngày tra luật với điểm KPI và rổ quà, xem `ruleDateOf`. Bản trước lấy
     // ngày mở SỚM nhất; hai ngày chỉ khác nhau ở khách mở tài khoản khác ngày.

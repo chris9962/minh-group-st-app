@@ -10,6 +10,7 @@ import { isRealIsoDate, type User } from "@/lib/types";
 import { giftFor, type GiftInput } from "@/rules";
 import { customerDayText } from "./customerDay";
 import { db } from "./db/client";
+import { giftPhotoSql } from "./giftPhoto";
 import {
   bankAccounts,
   banks,
@@ -154,6 +155,7 @@ export async function listGiftExcessExport(
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       channelCode: accountChannel.code,
+      giftPhoto: giftPhotoSql,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -196,6 +198,7 @@ export async function listGiftExcessExport(
       appInstalled: row.appInstalled,
       openedDate: recordDayOf.get(row.customerId) ?? "",
       household: row.accountType,
+      giftPhoto: row.giftPhoto,
     });
     doneOf.set(row.customerId, list);
     // Dòng `VPa` CNKD cũng giữ suất quà thêm từ 2026-10-02. Một ngân hàng không

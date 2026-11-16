@@ -177,8 +177,8 @@ export const channelInputKind = pgEnum("channel_input_kind", [
 /* ❌ gift_group · gift_rule_mode · app_count_comparator: BỎ (03/08) — chỉ phục
    vụ hai bảng cấu hình quy tắc quà, nay quy tắc nằm ở code theo kỳ. */
 
-/** Ảnh mở tài khoản đếm theo `banks.required_photos`; ảnh giao dịch thì không. */
-export const photoKind = pgEnum("photo_kind", ["opening", "transaction"]);
+/** Ảnh mở tài khoản đếm theo `banks.required_photos`; ảnh giao dịch và ảnh nhận quà ShopeePay thì không. */
+export const photoKind = pgEnum("photo_kind", ["opening", "transaction", "gift"]);
 
 /** Một lượt kiểm ảnh tự động: chờ worker, xong, hoặc worker hỏng. Migration 0088. */
 export const bankAccountCheckStatus = pgEnum("bank_account_check_status", [

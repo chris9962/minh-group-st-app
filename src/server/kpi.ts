@@ -15,6 +15,7 @@ import type { Range } from "./org";
 import { isMonthClosed } from "./closedMonths";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
+import { giftPhotoSql } from "./giftPhoto";
 import { recomputeEmployeeWorkDay, recomputeWorkDayForCustomer } from "./workDays";
 import {
   bankAccounts,
@@ -387,6 +388,7 @@ async function scoringAccountsOf(
       // 2026-08-24 nó RA ĐIỂM (thể lệ mục 4c), không còn chỉ mở nhóm quà.
       accountType: bankAccounts.accountType,
       departmentCode: departments.code,
+      giftPhoto: giftPhotoSql,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -407,6 +409,7 @@ async function scoringAccountsOf(
     openedDate: r.openedDate ?? "",
     household: r.accountType,
     departmentCode: r.departmentCode,
+    giftPhoto: r.giftPhoto,
   }));
 }
 
@@ -464,6 +467,7 @@ export async function bankingPointsByCustomer(
       household: bankAccounts.accountType,
       status: bankAccounts.status,
       departmentCode: departments.code,
+      giftPhoto: giftPhotoSql,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -496,6 +500,7 @@ export async function bankingPointsByCustomer(
       openedDate: r.openedDate ?? "",
       household: r.household,
       departmentCode: r.departmentCode,
+      giftPhoto: r.giftPhoto,
     };
     const target = r.status === "done" ? byCustomer : brokenByCustomer;
     const kept = target.get(r.customerId);
@@ -540,6 +545,7 @@ export async function comboLossByAccount(
       household: bankAccounts.accountType,
       status: bankAccounts.status,
       departmentCode: departments.code,
+      giftPhoto: giftPhotoSql,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -572,6 +578,7 @@ export async function comboLossByAccount(
       openedDate: r.openedDate ?? "",
       household: r.household,
       departmentCode: r.departmentCode,
+      giftPhoto: r.giftPhoto,
     };
     const bankLabel = r.household === "none" ? r.bankCode : `${r.bankCode} ${r.household}`;
     if (r.status === "done")
@@ -823,6 +830,7 @@ export async function pointsByStaffInRange(
         openedDate: customerDayText,
         accountType: bankAccounts.accountType,
         status: bankAccounts.status,
+        giftPhoto: giftPhotoSql,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -926,6 +934,7 @@ export async function pointsByStaffInRange(
       openedDate: r.openedDate ?? "",
       household: r.accountType,
       departmentCode: r.departmentCode,
+      giftPhoto: r.giftPhoto,
     };
     if (r.status !== "done") staff.broken.push(account);
     else if (rows) rows.push(account);

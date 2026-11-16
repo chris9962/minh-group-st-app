@@ -72,6 +72,12 @@ export type ScoringAccount = {
    * thuộc Phòng Y.
    */
   departmentCode?: string | null;
+  /**
+   * Tài khoản có ảnh khách nhận quà (`bank_account_photos.kind = 'gift'`). Kỳ
+   * 2026-11-11 cộng thêm 0,2 cho ShopeePay khi dòng ShopeePay có ảnh này
+   * (chủ dự án chốt 2026-11-16). Kỳ khác không đọc; vắng thì coi như chưa có ảnh.
+   */
+  giftPhoto?: boolean;
 };
 
 /**

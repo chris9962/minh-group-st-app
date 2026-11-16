@@ -51,7 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const base = [
       slug(photo.customerName),
       photo.accountNumber || "chua-co-stk",
-      photo.kind === "transaction" ? "giao-dich" : "",
+      photo.kind === "transaction" ? "giao-dich" : photo.kind === "gift" ? "nhan-qua" : "",
     ]
       .filter(Boolean)
       .join("-");
