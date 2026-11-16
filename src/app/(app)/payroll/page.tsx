@@ -30,10 +30,10 @@ import {
   SALARY_ADJUSTMENT_LABEL,
   type SalaryAdjustmentKind,
 } from "@/lib/api/salaryAdjustments";
-import { fetchStaff, type StaffQuery, type StaffRow, type StaffSort } from "@/lib/api/staff";
+import { fetchPayroll, type PayrollRow, type StaffQuery, type StaffSort } from "@/lib/api/staff";
 import { formatVnd } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes, can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
+import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -48,9 +48,8 @@ const STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] = [
 /** Lương từng người trong tháng: lương theo điểm, thưởng, trừ, ứng trước và lương cuối cùng. */
 export default function PayrollPage() {
   const user = useSession((s) => s.user);
-  // Cùng phạm vi với màn Nhân sự: máy chủ kẹp danh sách theo `staff:view-detail`.
-  const scopes = availableScopes(user, "staff", "view-detail");
-  const scope: Scope = scopes.at(-1) ?? "own";
+  // Máy chủ kẹp danh sách theo `salary:view-detail`.
+  const scope: Scope = scopeFor(user, "salary", "view-detail") ?? "own";
 
   const [month, setMonth] = useState(thisMonth);
   const [departmentId, setDepartmentId] = useState("");
@@ -61,11 +60,11 @@ export default function PayrollPage() {
   const [sort, setSort] = useState<StaffSort>("name");
   const [dir, setDir] = useState<SortDir>("asc");
   const [adjusting, setAdjusting] = useState<{
-    row: StaffRow;
+    row: PayrollRow;
     kind: SalaryAdjustmentKind;
     mode: "list" | "add";
   } | null>(null);
-  const [finalOf, setFinalOf] = useState<StaffRow | null>(null);
+  const [finalOf, setFinalOf] = useState<PayrollRow | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const { data: departments = [] } = useQuery({
@@ -97,14 +96,13 @@ export default function PayrollPage() {
     dir,
   };
   const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["staff", query],
-    queryFn: () => fetchStaff(query),
+    queryKey: ["payroll", query],
+    queryFn: () => fetchPayroll(query),
     placeholderData: keepPreviousData,
   });
 
-  const canClose = can(user, "system", "close-salary");
-  // Cùng điều kiện với route báo cáo Lương: file có lương của mọi phòng kinh doanh.
-  const canExport = scopeFor(user, "staff", "export") === "company";
+  const canClose = can(user, "salary", "close-salary");
+  const canExport = can(user, "salary", "export");
 
   const exportFile = async () => {
     setExporting(true);
@@ -120,7 +118,7 @@ export default function PayrollPage() {
   };
   const editable = canClose && !data?.monthClosed;
 
-  const adjustmentColumn = (kind: SalaryAdjustmentKind): RankColumn<StaffRow> => ({
+  const adjustmentColumn = (kind: SalaryAdjustmentKind): RankColumn<PayrollRow> => ({
     key: kind,
     label: SALARY_ADJUSTMENT_LABEL[kind],
     render: (r) => (
@@ -135,7 +133,7 @@ export default function PayrollPage() {
     ),
   });
 
-  const columns: RankColumn<StaffRow>[] = [
+  const columns: RankColumn<PayrollRow>[] = [
     {
       key: "name",
       label: "Nhân viên",

@@ -3,6 +3,7 @@ import { compare, hashSync } from "bcryptjs";
 import { and, asc, count, desc, eq, gte, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
+  PayrollList,
   StaffAccount,
   StaffForm,
   StaffList,
@@ -18,20 +19,23 @@ import {
   can,
   canActOn,
   canGrant,
+  canSeeSalaryOf,
   clampScope,
   inVisibleScope,
   isFullAccess,
   visibleDepartmentIds,
 } from "@/lib/permissions";
 import {
+  ContractType,
   isRealIsoDate,
-  SCOPELESS_ACTIONS,
+  isScopeless,
+  RoleKey,
   SCOPES,
   Scope,
   type Action,
   type User,
 } from "@/lib/types";
-import { forbidden, isUuid, notFound } from "./auth";
+import { forbidden, isUuid, notFound, uuidParam } from "./auth";
 import { closeBankStaffBlanks, reopenBankStaffBlanks } from "./bankBlanks";
 import { isMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
@@ -66,6 +70,7 @@ import { createdFrom } from "./vneid";
 import {
   countsInRange,
   daysLeftOf,
+  isYearMonth,
   pointsExpr,
   roleRankOf,
   staffSearchWhere,
@@ -139,6 +144,44 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
  * Bản cũ kéo 500 người rồi lọc bằng JS: người thứ 501 biến mất im lặng và thẻ
  * tóm tắt đếm thiếu theo, tức SAI SỐ chứ không phải chậm.
  */
+/** Bộ lọc của `/api/staff` và `/api/payroll`. Tháng sai hình dạng thì trả `null`. */
+export function staffQueryFrom(params: URLSearchParams): Omit<StaffQuery, "page" | "sort" | "dir"> | null {
+  const summaryMonth = params.get("summaryMonth") ?? "";
+  if (summaryMonth && !isYearMonth(summaryMonth)) return null;
+  return {
+    scope: params.get("scope") ?? "",
+    // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500. Link cũ trỏ
+    // phòng đã xoá không đáng làm hỏng cả màn: bỏ qua bộ lọc, hiện tất cả.
+    departmentId: uuidParam(params.get("departmentId")),
+    search: params.get("search") ?? "",
+    summaryMonth,
+    // Khoảng ngày của ba cột đếm. `staffFor` tự kiểm ngày CÓ THẬT, cùng chỗ
+    // với bốn module danh sách kia — chặn ở route thì hàm vẫn vỡ khi có nơi
+    // gọi khác.
+    from: params.get("from") ?? "",
+    to: params.get("to") ?? "",
+    // URL là dữ liệu bên ngoài: giá trị lạ không được vô tình hiểu là "đã
+    // khoá" chỉ vì `staffFor` so sánh với hai chuỗi hợp lệ.
+    status: ["active", "locked", "all"].includes(params.get("status") ?? "")
+      ? (params.get("status") as StaffQuery["status"])
+      : "active",
+    // Lọc qua danh sách vai có thật, cùng lối nghĩ với danh sách trắng khoá
+    // sắp: vai lạ đi vào `inArray` trên cột enum là 500, mà URL có ô lọc chức
+    // vụ thì người ta chia sẻ link cho nhau.
+    roles: (params.get("roles") ?? "")
+      .split(",")
+      .filter((r): r is RoleKey => RoleKey.options.includes(r as RoleKey)),
+    contractType: contractTypeParam(params.get("contractType")),
+  };
+}
+
+/** Giá trị lạ trên URL thì bỏ lọc, không trả 400 (AGENTS.md §5.1 điều 2). */
+function contractTypeParam(raw: string | null): StaffQuery["contractType"] {
+  if (raw === "none") return "none";
+  const parsed = ContractType.safeParse(raw);
+  return parsed.success ? parsed.data : "";
+}
+
 export async function staffFor(
   actor: User,
   query: Omit<StaffQuery, "page" | "sort" | "dir">,
@@ -147,8 +190,67 @@ export async function staffFor(
   // Phạm vi client xin hạ về đúng mức thật của người gọi — không tin tham số URL.
   const requested = Scope.safeParse(query.scope);
   const scope = clampScope(actor, "staff", "view-detail", requested.success ? requested.data : null);
-  const visible = visibleDepartmentIds(actor, scope);
+  const list = await rosterPage(query, page, visibleDepartmentIds(actor, scope), null);
+  return { ...list, page: { ...list.page, rows: list.page.rows.map((r) => withVisibleFixedSalary(actor, r)) } };
+}
 
+/** Lương cứng là số tiền lương, nên chỉ trả cho người xem được lương người đó (chốt 2026-11-16). */
+export const withVisibleFixedSalary = <T extends StaffAccount>(actor: User, staff: T): T =>
+  staff.fixedSalary === null || canSeeSalaryOf(actor, staff) ? staff : { ...staff, fixedSalary: null };
+
+/**
+ * Màn Lương: cùng bảng với P-51 nhưng phạm vi đọc quyền `salary:view-detail`
+ * (chốt 2026-11-16). Mức `own` của module Lương là đúng một dòng của mình.
+ */
+export async function payrollFor(
+  actor: User,
+  query: Omit<StaffQuery, "page" | "sort" | "dir">,
+  page: PageArgs<StaffSort>,
+): Promise<PayrollList> {
+  const requested = Scope.safeParse(query.scope);
+  const scope = clampScope(actor, "salary", "view-detail", requested.success ? requested.data : null);
+  const list =
+    scope === "own"
+      ? await rosterPage(query, page, null, actor.id)
+      : await rosterPage(query, page, scope === "company" ? null : actor.managedDepartmentIds, null);
+  const salaryById = await salaryForUsers(list.page.rows.map((r) => r.id), list.summaryMonth);
+  return {
+    ...list,
+    page: {
+      ...list.page,
+      rows: list.page.rows.map((r) => {
+        const salary = salaryById.get(r.id);
+        // Không trả cả hồ sơ: người chỉ có quyền Lương không được đọc số điện thoại hay bảng quyền.
+        return {
+          id: r.id,
+          fullName: r.fullName,
+          staffCode: r.staffCode,
+          monthDepartmentId: r.monthDepartmentId,
+          monthDepartmentName: r.monthDepartmentName,
+          monthRole: r.monthRole,
+          month: r.month,
+          salary: salary?.amount ?? 0,
+          salaryBreakdown: {
+            month: list.summaryMonth,
+            facts: salary?.facts ?? [],
+            items: salary?.items ?? [],
+            revenue: salary?.revenue,
+            pointsAmount: salary?.pointsAmount ?? 0,
+            adjustments: salary?.adjustments ?? [],
+          },
+          salaryAdjustments: adjustmentTotals(salary?.adjustments ?? []),
+        };
+      }),
+    },
+  };
+}
+
+async function rosterPage(
+  query: Omit<StaffQuery, "page" | "sort" | "dir">,
+  page: PageArgs<StaffSort>,
+  visible: string[] | null,
+  onlyUserId: string | null,
+): Promise<StaffList> {
   const summaryMonth = query.summaryMonth || businessMonth();
   const target = targetExpr(summaryMonth, staffRoster.departmentId);
   const points = pointsExpr(summaryMonth);
@@ -184,11 +286,13 @@ export async function staffFor(
   const inMonth = and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, summaryMonth));
   const inScope = and(
     visible === null ? undefined : inArray(staffRoster.departmentId, visible),
+    onlyUserId ? eq(users.id, onlyUserId) : undefined,
     query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
     query.status === "all" ? undefined : eq(staffRoster.active, query.status === "active"),
   );
   const summaryScope = and(
     visible === null ? undefined : inArray(staffRoster.departmentId, visible),
+    onlyUserId ? eq(users.id, onlyUserId) : undefined,
     query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
   );
   // Ô "nhân viên" đếm mọi người; hai ô đạt/chưa đạt đếm cùng luật với dòng
@@ -317,7 +421,6 @@ export async function staffFor(
     usableDate(query.from) && usableDate(query.to)
       ? await pointsByStaffInRange(countsRange)
       : null;
-  const salaryById = await salaryForUsers(rows.map((r) => r.user.id), summaryMonth);
 
   /**
    * Tổng điểm CẢ PHÒNG, cộng trên toàn phòng chứ không trên trang đang xem.
@@ -367,16 +470,7 @@ export async function staffFor(
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
         excludedFromDepartment: excluded?.has(a.id) ?? false,
-        salary: salaryById.get(a.id)?.amount ?? 0,
-        salaryBreakdown: {
-          month: summaryMonth,
-          facts: salaryById.get(a.id)?.facts ?? [],
-          items: salaryById.get(a.id)?.items ?? [],
-          revenue: salaryById.get(a.id)?.revenue,
-          pointsAmount: salaryById.get(a.id)?.pointsAmount ?? 0,
-          adjustments: salaryById.get(a.id)?.adjustments ?? [],
-        },
-        salaryAdjustments: adjustmentTotals(salaryById.get(a.id)?.adjustments ?? []),
+        month: summaryMonth,
       })),
       total: totals?.value ?? 0,
     },
@@ -785,7 +879,7 @@ async function writeStaff(
       // không tin ô chọn của giao diện: ẩn lựa chọn không phải là phân quyền, và
       // một request nặn tay vẫn gửi `own` lên được. Ghi `own` cho `manage-org`
       // là để lại một dòng trông như hẹp mà đọc trọn nhật ký công ty.
-      const normalized = SCOPELESS_ACTIONS.includes(p.action)
+      const normalized = isScopeless(p.module, p.action)
         ? { ...p, scope: "company" as const }
         : p;
       const kept = widest.get(key);

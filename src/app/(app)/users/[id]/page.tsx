@@ -80,7 +80,7 @@ export default function PersonPage({
     (can(actor, "staff", "create") || can(actor, "staff", "update")) && actor?.id !== id;
   const showAccount = canManage && section === "account";
   // Số tài khoản nhận lương: chỉ người có quyền chốt lương, cùng quyền với file chuyển lương.
-  const canPayment = can(actor, "system", "close-salary");
+  const canPayment = can(actor, "salary", "close-salary");
   const showPayment = canPayment && section === "payment";
   // Cùng quyền với màn P-93: nhật ký có lượt xem CCCD, không mở theo `staff:*`.
   const canAudit = can(actor, "system", "manage-org");

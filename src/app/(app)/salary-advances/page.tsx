@@ -100,7 +100,7 @@ export default function SalaryAdvancesPage() {
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["salary-advances"] });
     void queryClient.invalidateQueries({ queryKey: ["salary-advance"] });
-    void queryClient.invalidateQueries({ queryKey: ["staff"] });
+    void queryClient.invalidateQueries({ queryKey: ["payroll"] });
     void queryClient.invalidateQueries({ queryKey: ["salary-adjustments"] });
     void queryClient.invalidateQueries({ queryKey: ["person"] });
   };

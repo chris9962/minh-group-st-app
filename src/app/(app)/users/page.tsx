@@ -39,7 +39,6 @@ import { FilterChips } from "@/components/ui/FilterChips";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
-import { SalaryAmount } from "@/components/payroll/SalaryAmount";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import {
@@ -134,7 +133,7 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
         id={r.id}
         fullName={r.fullName}
         staffCode={r.staffCode}
-        month={r.salaryBreakdown.month}
+        month={r.month}
       />
     ),
   },
@@ -351,6 +350,7 @@ export default function PeoplePage() {
     onSuccess: (_account, row) => {
       // Hai khoá: bảng này và thẻ `AccountCard` ở hồ sơ người đó.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       queryClient.invalidateQueries({ queryKey: ["staff-one", row.id] });
       toast.ok(`${row.active ? "Đã khoá" : "Đã mở khoá"} tài khoản ${row.fullName}`);
       setLocking(null);
@@ -371,12 +371,6 @@ export default function PeoplePage() {
       canManage
         ? [
             ...BASE_COLUMNS,
-            {
-              key: "salary",
-              label: "Lương",
-              align: "right" as const,
-              render: (r) => <SalaryAmount amount={r.salary} visible />,
-            },
             {
               key: "actions",
               label: "Thao tác",
@@ -412,15 +406,7 @@ export default function PeoplePage() {
               ),
             },
           ]
-        : [
-            ...BASE_COLUMNS,
-            {
-              key: "salary",
-              label: "Lương",
-              align: "right" as const,
-              render: (r) => <SalaryAmount amount={r.salary} visible />,
-            },
-          ],
+        : BASE_COLUMNS,
     [canManage, user],
   );
 

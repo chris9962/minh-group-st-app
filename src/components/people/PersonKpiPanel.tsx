@@ -40,12 +40,14 @@ export function PersonKpiPanel({ person }: Props) {
           target={person.points.target}
           ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
           facts={
-            <div>
-              <dt>Lương</dt>
-              <dd>
-                <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
-              </dd>
-            </div>
+            person.salary !== null && person.salaryBreakdown ? (
+              <div>
+                <dt>Lương</dt>
+                <dd>
+                  <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
+                </dd>
+              </div>
+            ) : undefined
           }
         />
       </div>

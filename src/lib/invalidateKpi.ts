@@ -15,6 +15,7 @@ import type { QueryClient } from "@tanstack/react-query";
  */
 export function invalidateKpi(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["staff"] });
+  queryClient.invalidateQueries({ queryKey: ["payroll"] });
   queryClient.invalidateQueries({ queryKey: ["person"] });
   queryClient.invalidateQueries({ queryKey: ["dashboard"] });
 }

@@ -43,7 +43,11 @@ const percentOf = (part: number, whole: number): number =>
  * và số người là của THÁNG chứa kỳ đó (chốt 2026-09-30), đọc theo nhân sự của
  * tháng: lương không tính theo khoảng ngày.
  */
-export async function branchSummaryFor(subjectId: string, range: Range): Promise<BranchSummary> {
+export async function branchSummaryFor(
+  subjectId: string,
+  range: Range,
+  canSeeSalaryOfDepartment: (departmentId: string) => boolean,
+): Promise<BranchSummary> {
   const salaryMonth = range.from.slice(0, 7);
   const [subject] = await db
     .select({ managedDepartmentIds: staffRoster.managedDepartmentIds })
@@ -58,9 +62,11 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
         .where(and(inArray(departments.id, managedIds), eq(departments.type, "sales")))
         .orderBy(asc(departments.name))
     : [];
-  if (managed.length === 0) return { salaryMonth, departments: [], totals: EMPTY };
+  if (managed.length === 0) return { salaryMonth, salaryVisible: false, departments: [], totals: EMPTY };
 
   const ids = managed.map((d) => d.id);
+  // Thiếu quyền Lương ở một phòng thì ẩn cả cột: dòng Tổng cộng lương mọi phòng.
+  const salaryVisible = ids.every(canSeeSalaryOfDepartment);
   const [people, stats, points] = await Promise.all([
     db
       .select({
@@ -75,10 +81,12 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
     pointsByStaffInRange(range),
   ]);
   const [salaries, quota] = await Promise.all([
-    salaryForUsers(
-      people.map((p) => p.id),
-      salaryMonth,
-    ),
+    salaryVisible
+      ? salaryForUsers(
+          people.map((p) => p.id),
+          salaryMonth,
+        )
+      : Promise.resolve(new Map<string, { amount: number }>()),
     quotaConfigOf(salaryMonth),
   ]);
   // Theo tháng lương như cột lương, không theo kỳ lọc: chỉ tiêu tính theo tháng.
@@ -130,5 +138,5 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
   );
   totals.installPercent = percentOf(totals.appsInstalled, totals.accountsOpened);
 
-  return { salaryMonth, departments: rows, totals };
+  return { salaryMonth, salaryVisible, departments: rows, totals };
 }

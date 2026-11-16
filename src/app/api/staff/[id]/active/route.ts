@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { logAudit } from "@/server/audit";
 import { badRequest, getActor, jsonBody, unauthorized } from "@/server/auth";
-import { clearLoginLock, setStaffActive, staffTargetFor } from "@/server/staff";
+import { clearLoginLock, setStaffActive, staffTargetFor, withVisibleFixedSalary } from "@/server/staff";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,5 +37,5 @@ export async function POST(request: Request, { params }: Params) {
     targetTable: "users",
     targetId: id,
   });
-  return Response.json(staff);
+  return Response.json(withVisibleFixedSalary(actor, staff));
 }

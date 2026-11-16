@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ReceiptText } from "lucide-react";
-import type { PersonDetail } from "@/lib/api/person";
+import type { SalaryBreakdown } from "@/lib/api/person";
 import { SALARY_ADJUSTMENT_LABEL, type SalaryAdjustmentKind } from "@/lib/api/salaryAdjustments";
 import { formatDate, formatVnd } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,7 @@ import styles from "./SalaryBreakdownButton.module.css";
 
 type Props = {
   amount: number;
-  breakdown: PersonDetail["salaryBreakdown"];
+  breakdown: SalaryBreakdown;
   /**
    * Chỉ icon kèm tooltip, cho ô bảng không đủ chỗ cho chữ. Truyền tên người:
    * giữa nhiều dòng giống nhau, nhãn không có tên không nói đang mở lương của ai.
@@ -78,7 +78,7 @@ export function SalaryBreakdownDialog({
   onClose,
 }: {
   amount: number;
-  breakdown: PersonDetail["salaryBreakdown"];
+  breakdown: SalaryBreakdown;
   onClose: () => void;
 }) {
   // Đưa hộp thoại ra `body`: `<dialog>` nằm tại chỗ thì thừa hưởng kiểu chữ

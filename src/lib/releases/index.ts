@@ -44,7 +44,7 @@ export const RELEASES: Release[] = [
       {
         title: 'Lương Phó giám đốc',
         items: ['Lương tháng 10/2026: phòng có nhiều Phó GĐ cùng phụ trách thì phần của phòng chia đều cho từng người.'],
-        visibleTo: (user) => user.role === 'deputy-director' || can(user, 'system', 'close-salary'),
+        visibleTo: (user) => user.role === 'deputy-director' || can(user, 'salary', 'close-salary'),
       },
       {
         title: 'Quản lý ngân hàng',
@@ -112,13 +112,13 @@ export const RELEASES: Release[] = [
       {
         title: 'Nhân sự',
         items: ['Hồ sơ nhân viên có tab Thông tin thanh toán.'],
-        visibleTo: (user) => can(user, 'system', 'close-salary'),
+        visibleTo: (user) => can(user, 'salary', 'close-salary'),
       },
       {
         title: 'Lương và Tạm ứng',
         items: ['File Excel thêm cột Số tài khoản, Ngân hàng nhận, Mã ngân hàng.'],
         visibleTo: (user) =>
-          scopeFor(user, 'staff', 'export') === 'company' || can(user, 'system', 'close-salary'),
+          can(user, 'salary', 'export') || can(user, 'salary', 'pay-advance'),
       },
       {
         title: 'Xuất dữ liệu',
@@ -222,7 +222,7 @@ export const RELEASES: Release[] = [
       {
         title: 'Tạm ứng lương',
         items: ['Xuất Excel và Chuyển Đang xử lý là hai nút riêng.'],
-        visibleTo: (user) => can(user, 'system', 'close-salary'),
+        visibleTo: (user) => can(user, 'salary', 'pay-advance'),
       },
       {
         title: 'Lương',
@@ -418,7 +418,7 @@ export const RELEASES: Release[] = [
           'Từ chối phải ghi lý do.',
           'Yêu cầu chưa duyệt lúc 00:00 ngày 11 chuyển sang Hết hạn duyệt.',
         ],
-        visibleTo: (user) => can(user, 'staff', 'approve-advance'),
+        visibleTo: (user) => can(user, 'salary', 'approve-advance'),
       },
       {
         title: 'Kế toán duyệt và chi tạm ứng',
@@ -429,7 +429,7 @@ export const RELEASES: Release[] = [
           'Bấm Đã chi tạm ứng: số tiền vào cột Lương ứng trước ở trang Lương.',
           'Tháng còn yêu cầu tạm ứng chưa chi thì không chốt lương được.',
         ],
-        visibleTo: (user) => can(user, 'system', 'close-salary'),
+        visibleTo: (user) => can(user, 'salary', 'pay-advance'),
       },
       {
         title: 'Lương',

@@ -29,8 +29,8 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!result.ok) return Response.json({ message: result.message }, { status: result.status });
   await logAudit(guard.actor, {
     ...(result.as === "head"
-      ? { module: "staff", action: "approve-advance" }
-      : { module: "system", action: "close-salary" }),
+      ? { module: "salary", action: "approve-advance" }
+      : { module: "salary", action: "pay-advance" }),
     targetLabel: `Sửa tạm ứng lương tháng ${result.month} của ${result.fullName} thành ${formatVnd(parsed.data.amount)}`,
     targetTable: "salary_advance_requests",
     targetId: id,
@@ -52,8 +52,8 @@ export async function POST(request: Request, { params }: Params) {
   const verb = parsed.data.action === "approve" ? "Duyệt" : "Từ chối";
   await logAudit(guard.actor, {
     ...(result.as === "head"
-      ? { module: "staff", action: "approve-advance" }
-      : { module: "system", action: "close-salary" }),
+      ? { module: "salary", action: "approve-advance" }
+      : { module: "salary", action: "pay-advance" }),
     targetLabel: `${verb} tạm ứng lương tháng ${result.month} của ${result.fullName}`,
     targetTable: "salary_advance_requests",
     targetId: id,

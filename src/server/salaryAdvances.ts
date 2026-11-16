@@ -139,7 +139,7 @@ const HEAD_CLOSE_LABEL = `${ADVANCE_HEAD_CLOSE_HOUR}:00 ngày ${ADVANCE_DAY}`;
 /** Trưởng phòng duyệt yêu cầu của phòng này được. Phạm vi `own` hiểu là phòng của chính họ, như màn Phát phôi. */
 function headCovers(actor: User, departmentId: string | null): boolean {
   if (!departmentId) return false;
-  const visibility = recordVisibility(actor, "staff", "approve-advance");
+  const visibility = recordVisibility(actor, "salary", "approve-advance");
   if (visibility.kind === "all") return true;
   if (visibility.kind === "departments") return visibility.departmentIds.includes(departmentId);
   if (visibility.kind === "creator") return departmentId === actor.departmentId;
@@ -166,7 +166,7 @@ function permitted(actor: User, row: RequestRow, phase: AdvancePhase, monthClose
     phase === "accounting" &&
     !monthClosed &&
     row.userId !== actor.id &&
-    can(actor, "system", "close-salary")
+    can(actor, "salary", "pay-advance")
   )
     return { as: "accounting", approve: row.status === "head-approved" };
   return null;
@@ -328,7 +328,7 @@ async function changeAmount(actor: User, row: RequestRow, amount: number): Promi
 /* ── Danh sách của Trưởng phòng và kế toán ────────────────────────────── */
 
 function headScopeWhere(actor: User): SQL | undefined | false {
-  const visibility = recordVisibility(actor, "staff", "approve-advance");
+  const visibility = recordVisibility(actor, "salary", "approve-advance");
   if (visibility.kind === "all") return undefined;
   if (visibility.kind === "departments") return inArray(salaryAdvanceRequests.departmentId, visibility.departmentIds);
   if (visibility.kind === "creator")
@@ -356,7 +356,7 @@ export async function listAdvances(
   const now = advanceNow();
   await expireOverdue(now);
   const phase = advancePhaseOf(month, now);
-  const canAccount = can(actor, "system", "close-salary");
+  const canAccount = can(actor, "salary", "pay-advance");
   const headWhere = headScopeWhere(actor);
   const mode: AdvanceListMode | null =
     canAccount && phase === "accounting" ? "accounting" : headWhere !== false ? "head" : canAccount ? "waiting" : null;
@@ -485,7 +485,7 @@ async function requestWithName(id: string): Promise<{ row: RequestRow; fullName:
 const canRead = (actor: User, row: RequestRow, phase: AdvancePhase): boolean =>
   row.userId === actor.id ||
   headCovers(actor, row.departmentId) ||
-  (phase === "accounting" && can(actor, "system", "close-salary") && ACCOUNTING_STATUSES.includes(row.status));
+  (phase === "accounting" && can(actor, "salary", "pay-advance") && ACCOUNTING_STATUSES.includes(row.status));
 
 export async function advanceDetail(actor: User, id: string): Promise<AdvanceDetail | null> {
   const now = advanceNow();

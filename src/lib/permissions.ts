@@ -384,11 +384,42 @@ export function recordVisibility(
 
 /**
  * Trang Tạm ứng lương (chốt 2026-11-01): Trưởng phòng duyệt bước đầu bằng
- * `staff:approve-advance`, kế toán duyệt bước sau bằng quyền chốt lương. Nút và
- * route cùng hỏi hàm này.
+ * `salary:approve-advance`, kế toán xử lý bước sau bằng `salary:pay-advance`.
+ * Nút và route cùng hỏi hàm này.
  */
 export const canOpenSalaryAdvances = (user: User | null): boolean =>
-  can(user, 'staff', 'approve-advance') || can(user, 'system', 'close-salary');
+  can(user, 'salary', 'approve-advance') || can(user, 'salary', 'pay-advance');
+
+/**
+ * Người này xem được lương của `target` trong tháng đang xem không (chốt 2026-11-16).
+ *
+ * `departmentId` là phòng của target TRONG tháng đó (`staffRoster`). Mức `own`
+ * của module Lương là đúng lương của mình, không phải lương cả phòng mình.
+ */
+export function canSeeSalaryOf(
+  user: User | null,
+  target: { id: string; departmentId: string | null },
+): boolean {
+  if (!user || !can(user, 'salary', 'view-detail')) return false;
+  return target.id === user.id || canSeeDepartmentSalary(user, target.departmentId);
+}
+
+/** Người này xem được lương của mọi người trong phòng này không. */
+export function canSeeDepartmentSalary(user: User | null, departmentId: string | null): boolean {
+  const visibility = recordVisibility(user, 'salary', 'view-detail');
+  if (visibility.kind === 'all') return true;
+  return (
+    visibility.kind === 'departments' &&
+    departmentId !== null &&
+    visibility.departmentIds.includes(departmentId)
+  );
+}
+
+/** Màn Lương là bảng nhiều người, nên chỉ mở cho mức `managed` trở lên. Lương của mình xem ở Tổng quan và hồ sơ. */
+export function canOpenPayroll(user: User | null): boolean {
+  const scope = scopeFor(user, 'salary', 'view-detail');
+  return scope === 'managed' || scope === 'company';
+}
 
 /**
  * Nút MGT ở màn Ngân hàng P-21 (chủ dự án chốt 2026-10-15): ai đọc được tài

@@ -78,8 +78,14 @@ const columns: RankColumn<BranchDepartment>[] = [
     sortBy: (d) => progressRatio(d.directedAchieved, d.directedTarget),
     render: (d) => progressCell(d.directedAchieved, d.directedTarget),
   },
-  { key: "salary", label: "Lương tạm tính", sortBy: (d) => d.salary, render: (d) => formatVnd(d.salary) },
 ];
+
+const salaryColumn: RankColumn<BranchDepartment> = {
+  key: "salary",
+  label: "Lương tạm tính",
+  sortBy: (d) => d.salary,
+  render: (d) => formatVnd(d.salary),
+};
 
 export function BranchPanel({ person, branch, periodText }: Props) {
   const { totals } = branch;
@@ -90,12 +96,14 @@ export function BranchPanel({ person, branch, periodText }: Props) {
       <div className={styles.person}>
         <PersonIdentity person={person} />
         <dl className={styles.facts}>
-          <div>
-            <dt>Lương</dt>
-            <dd>
-              <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
-            </dd>
-          </div>
+          {person.salary !== null && person.salaryBreakdown && (
+            <div>
+              <dt>Lương</dt>
+              <dd>
+                <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Phòng phụ trách</dt>
             <dd>{branch.departments.map((d) => d.name).join(", ") || "Chưa được giao"}</dd>
@@ -112,16 +120,16 @@ export function BranchPanel({ person, branch, periodText }: Props) {
           detail={totals.accountsOpened > 0 ? `${totals.installPercent}% tài khoản` : undefined}
         />
         <StatCard value={formatPoints(totals.points)} label={`điểm tổng nhánh ${periodText}`} />
-        <StatCard value={formatVnd(totals.salary)} label={salaryLabel} />
+        {branch.salaryVisible && <StatCard value={formatVnd(totals.salary)} label={salaryLabel} />}
       </div>
 
       <SectionCard title="Theo phòng" icon={<Building2 size={17} />} meta={periodText}>
         <RankTable
           rows={branch.departments}
-          columns={columns}
+          columns={branch.salaryVisible ? [...columns, salaryColumn] : columns}
           rowKey={(d) => d.id}
           defaultSort="accountsOpened"
-          caption="Từng phòng Phó giám đốc phụ trách: nhân viên, tài khoản mở, app đã cài, tỉ lệ cài app, điểm, HKD và tài khoản định hướng so với chỉ tiêu tháng, lương tạm tính"
+          caption={`Từng phòng Phó giám đốc phụ trách: nhân viên, tài khoản mở, app đã cài, tỉ lệ cài app, điểm, HKD và tài khoản định hướng so với chỉ tiêu tháng${branch.salaryVisible ? ", lương tạm tính" : ""}`}
           emptyText="Chưa được giao phòng nào"
           summaryRow={
             branch.departments.length > 0
@@ -134,7 +142,7 @@ export function BranchPanel({ person, branch, periodText }: Props) {
                   formatPoints(totals.points),
                   progressText(totals.hkdAchieved, totals.hkdTarget),
                   progressText(totals.directedAchieved, totals.directedTarget),
-                  formatVnd(totals.salary),
+                  ...(branch.salaryVisible ? [formatVnd(totals.salary)] : []),
                 ]
               : undefined
           }

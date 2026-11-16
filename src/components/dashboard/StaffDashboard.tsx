@@ -70,12 +70,14 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
                   <dt>Chỉ tiêu</dt>
                   <dd className="tabular-nums">{formatPoints(person.points.target)} điểm</dd>
                 </div>
-                <div>
-                  <dt>Lương</dt>
-                  <dd>
-                    <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
-                  </dd>
-                </div>
+                {person.salary !== null && person.salaryBreakdown && (
+                  <div>
+                    <dt>Lương</dt>
+                    <dd>
+                      <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
+                    </dd>
+                  </div>
+                )}
               </>
             }
           />

@@ -43,6 +43,8 @@ export const moduleKey = pgEnum("module_key", [
   "attendance",
   // Trang BHYT/BHXH của Phòng An Sinh, thêm ở migration 0121
   "social-insurance",
+  // Lương, chốt lương, tạm ứng lương, thêm ở migration 0177
+  "salary",
   "system", "*",
 ]);
 
@@ -84,7 +86,7 @@ export const actionKey = pgEnum("action_key", [
   "send-announcement",
   // đặc biệt · system: mở màn Vận hành hệ thống P-99 (migration 0100)
   "view-ops",
-  // đặc biệt · system: chốt lương theo tháng (migration 0102)
+  // đặc biệt · salary: chốt lương theo tháng (migration 0102, ở module system tới migration 0177)
   "close-salary",
   // đặc biệt · customer/banking/insurance/vneid: tra cứu toàn công ty bằng CCCD (migration 0134)
   "lookup",
@@ -95,8 +97,10 @@ export const actionKey = pgEnum("action_key", [
   "split-blanks",
   // đặc biệt · attendance: ghi công thay nhân viên (migration 0155)
   "record-attendance",
-  // đặc biệt · staff: Trưởng phòng duyệt yêu cầu tạm ứng lương của phòng (migration 0159)
+  // đặc biệt · salary: Trưởng phòng duyệt yêu cầu tạm ứng lương của phòng (migration 0159, ở module staff tới migration 0177)
   "approve-advance",
+  // đặc biệt · salary: bước kế toán của tạm ứng lương (migration 0177)
+  "pay-advance",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);

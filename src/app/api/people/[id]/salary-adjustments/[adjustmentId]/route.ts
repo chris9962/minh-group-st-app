@@ -7,7 +7,7 @@ import { deleteSalaryAdjustment } from "@/server/salaryAdjustments";
 type Params = { params: Promise<{ id: string; adjustmentId: string }> };
 
 export async function DELETE(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "close-salary");
+  const guard = await actorWith(request, "salary", "close-salary");
   if (!guard.ok) return guard.response;
 
   const { id, adjustmentId } = await params;
@@ -19,7 +19,7 @@ export async function DELETE(request: Request, { params }: Params) {
   if (result === "linked") return badRequest("Khoản này là tạm ứng đã chi, không xoá được.");
 
   await logAudit(guard.actor, {
-    module: "system",
+    module: "salary",
     action: "close-salary",
     targetLabel: `Xoá ${SALARY_ADJUSTMENT_LABEL[result.kind].toLowerCase()} ${formatVnd(result.amount)} tháng ${result.month} của ${result.staff.fullName}`,
     targetTable: "salary_adjustments",

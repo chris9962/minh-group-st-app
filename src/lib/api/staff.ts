@@ -97,6 +97,21 @@ export const StaffRow = StaffAccount.extend({
   rangePoints: z.number().nullable().default(null),
   /** Bị loại khỏi điểm phòng của tháng đang xem; điểm vẫn hiện nhưng không vào tổng phòng. */
   excludedFromDepartment: z.boolean().default(false),
+  /** Tháng của các số trên dòng, dạng YYYY-MM. */
+  month: z.string(),
+});
+export type StaffRow = z.infer<typeof StaffRow>;
+
+/** Dòng của màn Lương, route `/api/payroll`. Bảng Nhân sự không trả lương (chốt 2026-11-16). */
+export const PayrollRow = StaffRow.pick({
+  id: true,
+  fullName: true,
+  staffCode: true,
+  monthDepartmentId: true,
+  monthDepartmentName: true,
+  monthRole: true,
+  month: true,
+}).extend({
   /** Lương cuối cùng của tháng: lương theo điểm + thưởng - trừ - ứng trước. */
   salary: z.number(),
   /** Từng khoản của `salary`, cùng tháng. Tháng đã chốt lương là bản đã lưu lúc chốt. */
@@ -104,7 +119,7 @@ export const StaffRow = StaffAccount.extend({
   /** Tổng ứng trước, thưởng, trừ lương của tháng, đồng. */
   salaryAdjustments: z.object({ advance: z.number(), bonus: z.number(), deduction: z.number() }),
 });
-export type StaffRow = z.infer<typeof StaffRow>;
+export type PayrollRow = z.infer<typeof PayrollRow>;
 
 export const StaffSummary = z.object({
   /** Mọi người đang làm trong phạm vi, kể cả phòng văn phòng; `onTarget` + `offTarget` không cộng ra số này. */
@@ -139,6 +154,9 @@ export const StaffList = z.object({
   page: pageOf(StaffRow),
 });
 export type StaffList = z.infer<typeof StaffList>;
+
+export const PayrollList = StaffList.extend({ page: pageOf(PayrollRow) });
+export type PayrollList = z.infer<typeof PayrollList>;
 
 export const isOnTarget = (r: { points: number; target: number }) => r.points >= r.target;
 export const pointsGap = (r: { points: number; target: number }) => r.points - r.target;
@@ -425,8 +443,8 @@ export async function fetchStaffOptions(
   return z.array(StaffOption).parse(await res.json());
 }
 
-export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
-  const params = pageParams(query, {
+const staffParams = (query: StaffQuery) =>
+  pageParams(query, {
     scope: query.scope,
     departmentId: query.departmentId,
     search: query.search,
@@ -437,9 +455,17 @@ export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
     roles: query.roles.join(','),
     contractType: query.contractType ?? '',
   });
-  const res = await fetch(`/api/staff?${params}`);
+
+export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
+  const res = await fetch(`/api/staff?${staffParams(query)}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return StaffList.parse(await res.json());
+}
+
+export async function fetchPayroll(query: StaffQuery): Promise<PayrollList> {
+  const res = await fetch(`/api/payroll?${staffParams(query)}`);
+  if (!res.ok) throw new Error('Không tải được bảng lương');
+  return PayrollList.parse(await res.json());
 }
 
 /**

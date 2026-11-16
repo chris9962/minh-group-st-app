@@ -11,7 +11,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { closeSalary, fetchSalaryClosing } from "@/lib/api/salaryClosings";
 import { errorMessage, toast } from "@/lib/toast";
 
-/** Nút Chốt lương của một tháng. Nơi dùng tự kiểm quyền `system:close-salary`. */
+/** Nút Chốt lương của một tháng. Nơi dùng tự kiểm quyền `salary:close-salary`. */
 export function SalaryClosingControl({ month }: { month: string }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);

@@ -3,7 +3,7 @@ import { advanceExportRows } from "@/server/salaryAdvances";
 
 /** Trọn danh sách theo bộ lọc đang xem cho file Excel của kế toán (AGENTS.md §12): không lấy trang đang hiện. */
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "system", "close-salary");
+  const guard = await actorWith(request, "salary", "pay-advance");
   if (!guard.ok) return guard.response;
   const params = new URL(request.url).searchParams;
   const month = params.get("month") ?? "";

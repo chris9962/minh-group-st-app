@@ -6,7 +6,7 @@ import { closeSalaryMonth, salaryClosingOf } from "@/server/salary";
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "system", "close-salary");
+  const guard = await actorWith(request, "salary", "close-salary");
   if (!guard.ok) return guard.response;
 
   const month = new URL(request.url).searchParams.get("month") ?? "";
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "close-salary");
+  const guard = await actorWith(request, "salary", "close-salary");
   if (!guard.ok) return guard.response;
 
   const parsed = z.object({ month: z.string().regex(MONTH) }).safeParse(await jsonBody(request));
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (typeof saved === "string") return Response.json({ message: saved }, { status: 409 });
 
   await logAudit(guard.actor, {
-    module: "system",
+    module: "salary",
     action: "close-salary",
     targetLabel: `Chốt lương tháng ${month}: ${saved} người`,
     targetTable: "salary_closings",

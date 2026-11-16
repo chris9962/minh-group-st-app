@@ -11,7 +11,7 @@ const LABEL = {
 
 /** Ba nút ghi của kế toán: Duyệt tất cả, Chuyển Đang xử lý, Đã chi tạm ứng. */
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "close-salary");
+  const guard = await actorWith(request, "salary", "pay-advance");
   if (!guard.ok) return guard.response;
   const parsed = AdvanceBatchForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
@@ -27,8 +27,8 @@ export async function POST(request: Request) {
 
   if (result.count > 0)
     await logAudit(guard.actor, {
-      module: "system",
-      action: "close-salary",
+      module: "salary",
+      action: "pay-advance",
       targetLabel: `${LABEL[form.action]} ${result.count} yêu cầu tạm ứng lương tháng ${form.month}`,
       targetTable: "salary_advance_requests",
     });

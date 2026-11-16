@@ -5,6 +5,7 @@ import {
   canConfigureWards,
   canCreateBank,
   canOpenBankAdmin,
+  canOpenPayroll,
   canOpenSalaryAdvances,
   canOrg,
   isFullAccess,
@@ -202,7 +203,8 @@ export function navFor(user: User | null): NavEntry[] {
    */
   if (user.manageScope !== 'none' || can(user, 'staff', 'create')) {
     (fullAccess ? manage : items).push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
-    // Cùng điều kiện với Nhân sự: trang Lương đọc chung danh sách nhân viên và phạm vi phòng.
+  }
+  if (canOpenPayroll(user)) {
     (fullAccess ? manage : items).push({ href: '/payroll', label: 'Lương', icon: 'payroll', screen: 'P-51' });
   }
   if (canOpenSalaryAdvances(user)) {

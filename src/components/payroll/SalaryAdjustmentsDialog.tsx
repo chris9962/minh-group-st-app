@@ -61,7 +61,7 @@ export function SalaryAdjustmentsDialog({ staff, month, kind, mode, editable, on
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey });
-    void queryClient.invalidateQueries({ queryKey: ["staff"] });
+    void queryClient.invalidateQueries({ queryKey: ["payroll"] });
   };
 
   const create = useMutation({

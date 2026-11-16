@@ -9,7 +9,7 @@ import type {
 } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
-import { recordVisibility } from "@/lib/permissions";
+import { recordVisibility, scopeFor } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import type { AccountType } from "@/lib/api/bankAccounts";
 import { appsInstalledCount, effectiveAccountType, variantOfAccount } from "./appCounted";
@@ -1049,7 +1049,7 @@ export async function dashboardFor(
       // Lương là số của THÁNG chứa kỳ đang xem, không tính theo khoảng ngày
       // (chốt 2026-09-30). Lấy cả người nghỉ giữa tháng: họ vẫn có lương tháng
       // đó, cùng tập người với `closeSalaryMonth`.
-      v.kind === "company"
+      v.kind === "company" && scopeFor(actor, "salary", "view-detail") === "company"
         ? db
             .select({ id: staffRoster.userId })
             .from(staffRoster)

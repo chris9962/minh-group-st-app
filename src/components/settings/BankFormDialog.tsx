@@ -300,6 +300,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
        * — thu hồi đúng quyền vừa cấp, mà không ai thấy mình đã làm gì.
        */
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       queryClient.invalidateQueries({ queryKey: ["staff-one"] });
       onClose();
       toast.ok("Đã lưu ngân hàng");

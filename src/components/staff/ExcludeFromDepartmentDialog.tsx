@@ -18,6 +18,7 @@ const DEPARTMENT_POINTS_KEYS = [
   "dashboard",
   "person",
   "staff",
+  "payroll",
 ];
 
 export function invalidateDepartmentPoints(queryClient: QueryClient) {

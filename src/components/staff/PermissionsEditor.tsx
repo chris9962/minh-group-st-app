@@ -10,10 +10,10 @@ import {
   ACTION_LABEL,
   BASE_ACTIONS,
   EDITABLE_MODULES,
+  isScopeless,
   MODULE_LABEL,
   SCOPE_LABEL,
   SCOPES,
-  SCOPELESS_ACTIONS,
   SPECIAL_ACTIONS_OF,
   type Action,
   type ModuleKey,
@@ -54,7 +54,9 @@ function actionsForModule(module: ModuleKey): Action[] {
           ? (["view-detail"] as Action[])
           : module === "social-insurance"
             ? BASE_ACTIONS.filter((a) => a !== "view-summary")
-            : BASE_ACTIONS;
+            : module === "salary"
+              ? (["view-detail", "export"] as Action[])
+              : BASE_ACTIONS;
   const special = SPECIAL_ACTIONS_OF[module] ?? [];
   return [...base, ...special];
 }
@@ -164,7 +166,7 @@ export function PermissionsEditor({
              * quyền trông như hẹp mà thật ra không: nhật ký hoạt động không cắt
              * theo phòng được, ai bật cũng đọc trọn công ty.
              */
-            if (SCOPELESS_ACTIONS.includes(action)) {
+            if (isScopeless(module, action)) {
               const on = full || current !== "";
               return (
                 <div key={action} className={styles.row}>

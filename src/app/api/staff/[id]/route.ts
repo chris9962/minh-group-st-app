@@ -2,7 +2,7 @@ import { StaffForm } from "@/lib/api/staff";
 import { inVisibleScope } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
-import { saveError, staffTargetFor, updateStaff } from "@/server/staff";
+import { saveError, staffTargetFor, updateStaff, withVisibleFixedSalary } from "@/server/staff";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -22,7 +22,7 @@ export async function GET(request: Request, { params }: Params) {
     targetTable: "users",
     targetId: target.staff.id,
   });
-  return Response.json(target.staff);
+  return Response.json(withVisibleFixedSalary(actor, target.staff));
 }
 
 export async function PATCH(request: Request, { params }: Params) {
@@ -54,5 +54,5 @@ export async function PATCH(request: Request, { params }: Params) {
     targetTable: "users",
     targetId: id,
   });
-  return Response.json(result.staff);
+  return Response.json(withVisibleFixedSalary(actor, result.staff));
 }

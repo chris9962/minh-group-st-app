@@ -80,6 +80,8 @@ const staffPermissions: Permission[] = [
   p('vneid', 'create', 'own'),
   p('vneid', 'update', 'own'),
   p('vneid', 'delete', 'own'),
+  // Ai cũng xem được lương của mình (chốt 2026-11-16); vai quản lý nhận mức `managed` qua `managerPermissions`.
+  p('salary', 'view-detail', 'own'),
   /**
    * KHÔNG có quyền `services` ở vai nào (chốt 2026-09-30). Trưởng phòng, Phó
    * phòng, Phó giám đốc kế thừa danh sách này nên cũng không có; Giám đốc có
@@ -234,7 +236,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   admin: directorPermissions,
   'deputy-director': deputyDirectorPermissions,
   // Chỉ Trưởng phòng duyệt tạm ứng lương, Phó phòng không duyệt thay (chốt 2026-11-01).
-  head: [...headPermissions, p('staff', 'approve-advance', 'managed')],
+  head: [...headPermissions, p('salary', 'approve-advance', 'managed')],
   'deputy-head': headPermissions,
   staff: staffPermissions,
 };

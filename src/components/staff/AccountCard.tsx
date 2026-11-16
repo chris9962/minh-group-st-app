@@ -70,6 +70,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
     onSuccess: (_account, next) => {
       queryClient.invalidateQueries({ queryKey: ["staff-one", staffId] });
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       toast.ok(next ? "Đã mở khoá tài khoản" : "Đã khoá tài khoản");
       setConfirming(null);
     },

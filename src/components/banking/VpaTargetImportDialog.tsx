@@ -168,6 +168,7 @@ export function VpaTargetImportDialog({ open, onClose }: Props) {
       queryClient.invalidateQueries({ queryKey: ["casa-month", month] });
       // Lương ở P-51/P-52 đọc điểm trừ và số CASA của tháng: ghi xong phải thấy ngay ở đó.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       toast.ok(
         `Đã trừ điểm ${result.written.staff} nhân viên, ghi ${result.written.casa} tài khoản CASA, bỏ ${result.written.casaRemoved} tài khoản CASA.`,

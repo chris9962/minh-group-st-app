@@ -42,8 +42,6 @@ import { personHref } from "@/lib/api/people";
 import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
-import { SalaryAmount } from "@/components/payroll/SalaryAmount";
-import { SalaryBreakdownButton } from "@/components/payroll/SalaryBreakdownButton";
 import styles from "./page.module.scss";
 
 /**
@@ -63,7 +61,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     sortText: (s) => s.fullName,
     render: (s) => {
       const link = (
-        <Link href={personHref(s.id, s.salaryBreakdown.month)} className={styles.nameLink}>
+        <Link href={personHref(s.id, s.month)} className={styles.nameLink}>
           {s.fullName}
         </Link>
       );
@@ -128,21 +126,6 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     sortBy: (s) => s.rangePoints ?? 0,
     render: (s) => <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>,
   },
-  {
-    key: "salary",
-    label: "Lương",
-    align: "right",
-    render: (staff) => (
-      <span className={styles.salaryCell}>
-        <SalaryAmount amount={staff.salary} visible />
-        <SalaryBreakdownButton
-          iconOnly={{ personName: staff.fullName }}
-          amount={staff.salary}
-          breakdown={staff.salaryBreakdown}
-        />
-      </span>
-    ),
-  },
 ];
 
 type PersonRevenue = DepartmentSocialInsurance["people"][number];
@@ -174,7 +157,6 @@ function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): Ra
     records("bhxh", "Hồ sơ BHXH"),
     collected("bhxh", "Doanh thu BHXH"),
     columnOf("rangePoints"),
-    columnOf("salary"),
   ];
 }
 
@@ -191,7 +173,7 @@ export default function DepartmentDetailPage({
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const periodRange = periodDates(period);
-  // Người quản lý và lương của họ là của THÁNG đang xem.
+  // Người quản lý là của THÁNG đang xem.
   const month = periodRange.from.slice(0, 7);
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-department", id, month],
@@ -317,7 +299,6 @@ export default function DepartmentDetailPage({
       services: sum.services + staff.services,
       // Khớp tổng điểm phòng ở tiêu đề khối, nơi người bị loại không được cộng.
       points: sum.points + (staff.excludedFromDepartment ? 0 : (staff.rangePoints ?? 0)),
-      salary: sum.salary + staff.salary,
     }),
     {
       customers: 0,
@@ -325,7 +306,6 @@ export default function DepartmentDetailPage({
       accounts: 0,
       services: 0,
       points: 0,
-      salary: 0,
     },
   );
   const revenueTotals = visibleRows.reduce(
@@ -345,7 +325,6 @@ export default function DepartmentDetailPage({
       {formatPoints(totals.points)}
     </span>
   );
-  const salaryCell = <SalaryAmount key="salary" amount={totals.salary} visible />;
   const summaryRow = social
     ? [
         "Tổng",
@@ -360,7 +339,6 @@ export default function DepartmentDetailPage({
           {formatCents(revenueTotals.bhxhCollected)}
         </span>,
         pointsCell,
-        salaryCell,
       ]
     : [
         "Tổng",
@@ -371,7 +349,6 @@ export default function DepartmentDetailPage({
         <Count key="accounts" n={totals.accounts} />,
         <Count key="services" n={totals.services} />,
         pointsCell,
-        salaryCell,
       ];
 
   return (
@@ -424,23 +401,10 @@ export default function DepartmentDetailPage({
               <ul className={styles.managers}>
                 {data.managers.map((m) => (
                   <li key={m.id}>
-                    <Link
-                      href={personHref(m.id, m.salaryBreakdown.month)}
-                      className={styles.nameLink}
-                    >
+                    <Link href={personHref(m.id, month)} className={styles.nameLink}>
                       {m.fullName}
                     </Link>
                     <span className={styles.managerTitle}>{m.title}</span>
-                    {!data.managedByDefault && (
-                      <span className={styles.managerSalary}>
-                        <span>Lương:</span>
-                        <SalaryAmount amount={m.salary} visible />
-                        <SalaryBreakdownButton
-                          amount={m.salary}
-                          breakdown={m.salaryBreakdown}
-                        />
-                      </span>
-                    )}
                   </li>
                 ))}
               </ul>

@@ -74,6 +74,8 @@ export const ModuleKey = z.enum([
   'attendance',
   /** Trang BHYT/BHXH của Phòng An Sinh (migration 0121). */
   'social-insurance',
+  /** Lương, chốt lương, tạm ứng lương (migration 0177, chốt 2026-11-16). Tách khỏi `staff`: xem hồ sơ người không kéo theo xem lương. */
+  'salary',
   'system',
   '*',
 ]);
@@ -181,7 +183,7 @@ export const Action = z.enum([
    * đây nói máy có chạy không, không nói đội làm được bao nhiêu.
    */
   'view-ops',
-  /** Chốt lương theo tháng trên màn Nhân sự & KPI (migration 0102). Không có mở chốt. */
+  /** Chốt lương theo tháng ở màn Lương (migration 0102), thuộc module `salary` từ migration 0177. Không có mở chốt. */
   'close-salary',
   /**
    * Đặc biệt — staff (migration 0143, chốt 2026-10-18): loại một nhân viên khỏi
@@ -200,11 +202,12 @@ export const Action = z.enum([
   /** Đặc biệt — attendance (migration 0155, chốt 2026-10-30): ghi công thay nhân viên ở bảng chấm công. */
   'record-attendance',
   /**
-   * Đặc biệt — staff (migration 0159, chốt 2026-11-01): Trưởng phòng duyệt hoặc
-   * từ chối yêu cầu tạm ứng lương của phòng trước 13:00 ngày 10. Bước kế toán sau đó
-   * dùng `system:close-salary`.
+   * Đặc biệt — salary (migration 0159, chốt 2026-11-01): Trưởng phòng duyệt hoặc
+   * từ chối yêu cầu tạm ứng lương của phòng trước 13:00 ngày 10.
    */
   'approve-advance',
+  /** Đặc biệt — salary (migration 0177): bước kế toán của tạm ứng lương, từ 13:00 ngày 10. */
+  'pay-advance',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -218,6 +221,7 @@ export const MODULE_LABEL: Record<ModuleKey, string> = {
   vneid: 'VNeID',
   attendance: 'Chấm công',
   'social-insurance': 'BHYT/BHXH',
+  salary: 'Lương',
   system: 'Hệ thống',
   '*': 'Tất cả module',
 };
@@ -251,6 +255,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'split-blanks': 'Chia phôi cho nhân viên',
   'record-attendance': 'Ghi công cho nhân viên',
   'approve-advance': 'Duyệt tạm ứng lương',
+  'pay-advance': 'Kế toán xử lý tạm ứng lương',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -294,15 +299,22 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'exclude-department-points',
   // Văn phòng cấp phôi cho mọi phòng và đặt một mục tiêu tỉ lệ chung cho cả công ty.
   'allocate-blanks',
+  // Kế toán xử lý yêu cầu tạm ứng của cả công ty.
+  'pay-advance',
 ];
+
+/** File lương có số tài khoản nhận lương của mọi phòng, nên `salary:export` không cắt theo phòng. */
+export const isScopeless = (module: ModuleKey, action: Action): boolean =>
+  SCOPELESS_ACTIONS.includes(action) || (module === 'salary' && action === 'export');
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number', 'lookup'],
   insurance: ['handle-fallback', 'set-status', 'lookup', 'allocate-blanks', 'split-blanks'],
   banking: ['grant-gift', 'lookup', 'allocate-blanks', 'split-blanks'],
   vneid: ['lookup'],
-  staff: ['exclude-department-points', 'approve-advance'],
+  staff: ['exclude-department-points'],
   attendance: ['record-attendance'],
+  salary: ['close-salary', 'approve-advance', 'pay-advance'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
    *
@@ -327,7 +339,6 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
     'adjust-kpi',
     'handle-feedback',
     'view-ops',
-    'close-salary',
   ],
 };
 
@@ -342,6 +353,7 @@ export const EDITABLE_MODULES: ModuleKey[] = [
   'vneid',
   'attendance',
   'social-insurance',
+  'salary',
   'system',
 ];
 

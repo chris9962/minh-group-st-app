@@ -68,6 +68,7 @@ export function ServiceTypeFormDialog({ open, month, locked, onClose, serviceTyp
       // Hệ số vào thẳng công thức điểm KPI, mà P-51/P-52 đọc điểm qua các khoá
       // này — không nạp lại thì hai màn đó hiện điểm theo hệ số cũ.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       queryClient.invalidateQueries({ queryKey: ["services"] });
       setConfirming(null);

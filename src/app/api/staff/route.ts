@@ -1,11 +1,9 @@
-import { STAFF_SORT, StaffForm, type StaffQuery } from "@/lib/api/staff";
+import { STAFF_SORT, StaffForm } from "@/lib/api/staff";
 import { can, inVisibleScope } from "@/lib/permissions";
-import { ContractType, RoleKey } from "@/lib/types";
 import { logAudit } from "@/server/audit";
-import { badRequest, forbidden, getActor, jsonBody, unauthorized, uuidParam } from "@/server/auth";
+import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
 import { pageArgsFrom } from "@/server/pagination";
-import { isYearMonth } from "@/server/people";
-import { createStaff, saveError, staffFor } from "@/server/staff";
+import { createStaff, saveError, staffFor, staffQueryFrom } from "@/server/staff";
 
 export async function GET(request: Request) {
   const actor = await getActor(request);
@@ -22,46 +20,12 @@ export async function GET(request: Request) {
   if (!can(actor, "staff", "view-detail")) return forbidden();
 
   const url = new URL(request.url);
-  const params = url.searchParams;
-  const summaryMonth = params.get("summaryMonth") ?? "";
-  if (summaryMonth && !isYearMonth(summaryMonth)) return badRequest("Tháng không hợp lệ");
-
-  const query: Omit<StaffQuery, "page" | "sort" | "dir"> = {
-    scope: params.get("scope") ?? "",
-    // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500. Link cũ trỏ
-    // phòng đã xoá không đáng làm hỏng cả màn: bỏ qua bộ lọc, hiện tất cả.
-    departmentId: uuidParam(params.get("departmentId")),
-    search: params.get("search") ?? "",
-    summaryMonth,
-    // Khoảng ngày của ba cột đếm. `staffFor` tự kiểm ngày CÓ THẬT, cùng chỗ
-    // với bốn module danh sách kia — chặn ở route thì hàm vẫn vỡ khi có nơi
-    // gọi khác.
-    from: params.get("from") ?? "",
-    to: params.get("to") ?? "",
-    // URL là dữ liệu bên ngoài: giá trị lạ không được vô tình hiểu là "đã
-    // khoá" chỉ vì `staffFor` so sánh với hai chuỗi hợp lệ.
-    status: ["active", "locked", "all"].includes(params.get("status") ?? "")
-      ? (params.get("status") as StaffQuery["status"])
-      : "active",
-    // Lọc qua danh sách vai có thật, cùng lối nghĩ với danh sách trắng khoá
-    // sắp: vai lạ đi vào `inArray` trên cột enum là 500, mà URL có ô lọc chức
-    // vụ thì người ta chia sẻ link cho nhau.
-    roles: (params.get("roles") ?? "")
-      .split(",")
-      .filter((r): r is RoleKey => RoleKey.options.includes(r as RoleKey)),
-    contractType: contractTypeParam(params.get("contractType")),
-  };
+  const query = staffQueryFrom(url.searchParams);
+  if (!query) return badRequest("Tháng không hợp lệ");
 
   return Response.json(
     await staffFor(actor, query, pageArgsFrom(url, STAFF_SORT, "name")),
   );
-}
-
-/** Giá trị lạ trên URL thì bỏ lọc, không trả 400 (AGENTS.md §5.1 điều 2). */
-function contractTypeParam(raw: string | null): StaffQuery["contractType"] {
-  if (raw === "none") return "none";
-  const parsed = ContractType.safeParse(raw);
-  return parsed.success ? parsed.data : "";
 }
 
 export async function POST(request: Request) {

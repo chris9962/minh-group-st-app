@@ -1233,6 +1233,13 @@
       "when": 1789891400400,
       "tag": "0176_department_max_work_days",
       "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1789891400500,
+      "tag": "0177_salary_module",
+      "breakpoints": true
     }
   ]
 }

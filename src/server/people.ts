@@ -12,7 +12,13 @@ import type {
 import type { Page } from "@/lib/api/pagination";
 import { KIND_LABEL, PLAN_LABEL } from "@/lib/api/socialInsurance";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth, formatPoints, monthRange, roundPoints } from "@/lib/format";
-import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
+import {
+  canSeeDepartmentSalary,
+  canSeeSalaryOf,
+  clampScope,
+  inVisibleScope,
+  visibleDepartmentIds,
+} from "@/lib/permissions";
 import { formatCents } from "@/lib/money";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
@@ -862,11 +868,15 @@ export async function personFor(
     });
 
   pointSources.sort((a, b) => b.points - a.points);
-  const salaryResult = (await salaryForUsers([id], summaryMonth)).get(id);
+  const salaryVisible = canSeeSalaryOf(actor, { id, departmentId: monthDepartmentId });
+  const salaryResult = salaryVisible ? (await salaryForUsers([id], summaryMonth)).get(id) : undefined;
 
   // Phó giám đốc không lập hồ sơ nên vòng điểm và bốn tab hoạt động của họ luôn
   // trống. Hồ sơ của họ hiện các phòng họ quản thay vào đó (chốt 2026-09-22).
-  const branch = monthRole === "deputy-director" ? await branchSummaryFor(id, range) : null;
+  const branch =
+    monthRole === "deputy-director"
+      ? await branchSummaryFor(id, range, (departmentId) => canSeeDepartmentSalary(actor, departmentId))
+      : null;
 
   return {
     id: row.user.id,
@@ -892,15 +902,17 @@ export async function personFor(
       ),
       target,
     },
-    salary: salaryResult?.amount ?? 0,
-    salaryBreakdown: {
-      month: summaryMonth,
-      facts: salaryResult?.facts ?? [],
-      items: salaryResult?.items ?? [],
-      revenue: salaryResult?.revenue,
-      pointsAmount: salaryResult?.pointsAmount ?? 0,
-      adjustments: salaryResult?.adjustments ?? [],
-    },
+    salary: salaryVisible ? (salaryResult?.amount ?? 0) : null,
+    salaryBreakdown: salaryVisible
+      ? {
+          month: summaryMonth,
+          facts: salaryResult?.facts ?? [],
+          items: salaryResult?.items ?? [],
+          revenue: salaryResult?.revenue,
+          pointsAmount: salaryResult?.pointsAmount ?? 0,
+          adjustments: salaryResult?.adjustments ?? [],
+        }
+      : null,
     pointSources,
     adjustments,
     monthlyPoints,
@@ -954,6 +966,22 @@ export async function visibleStaffId(actor: User, id: string, range: Period): Pr
   if (range.to.slice(0, 7) !== yearMonth) return false;
   const inMonth = await staffInMonth(id, yearMonth);
   return inMonth !== null && inVisibleScope(actor, "staff", "view-detail", inMonth.departmentId);
+}
+
+/**
+ * Quyền xem số tiền lương của một người trong tháng: chỉ theo phòng của tháng đó,
+ * cùng luật với `personFor` và màn Lương. Không xét phòng hiện tại như
+ * `visibleStaffId`, không thì trưởng phòng mới đọc được lương tháng người đó còn ở phòng cũ.
+ */
+export async function salaryVisibleStaffId(actor: User, id: string, yearMonth: string): Promise<boolean> {
+  const inMonth = await staffInMonth(id, yearMonth);
+  if (inMonth) return canSeeSalaryOf(actor, { id, departmentId: inMonth.departmentId });
+  const rows = await db
+    .select({ departmentId: users.departmentId })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return rows[0] !== undefined && canSeeSalaryOf(actor, { id, departmentId: rows[0].departmentId });
 }
 
 const orderedBy = (col: AnyColumn, dir: "asc" | "desc", idCol: AnyColumn) =>

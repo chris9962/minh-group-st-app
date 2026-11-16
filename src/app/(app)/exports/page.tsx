@@ -20,7 +20,6 @@ import {
   fetchGiftExcessExport,
   fetchHelmetNoodleExport,
   fetchOrderStats,
-  fetchSalaryExport,
   fetchWorkDayExport,
   type BankNotOpenedCustomer,
   type BankNotOpenedRow,
@@ -28,7 +27,6 @@ import {
   type GiftExcessRow,
   type HelmetNoodleRow,
   type OrderStatsGroupBy,
-  type SalaryExportRow,
   type WorkDayExportRow,
 } from "@/lib/api/exports";
 import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
@@ -55,7 +53,6 @@ import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { EXCEL_GROUP_COLORS, exportExcel, exportExcelSheets, type ExcelColumn, type ExcelSheet } from "@/lib/excel";
-import { exportSalaryWorkbook, salaryExportColumns } from "@/components/payroll/salaryExcel";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import {
@@ -86,7 +83,6 @@ type ReportId =
   | "helmet-noodle-gifts"
   | "bank-not-opened"
   | "work-days"
-  | "salary"
   | "directed-accounts"
   | "vneid";
 
@@ -124,8 +120,8 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
   { id: "cancelled-insurance", label: "Đơn bảo hiểm huỷ", module: "insurance", group: "insurance" },
   { id: "staff-points", label: "Nhân viên + điểm", module: "staff", group: "staff" },
   { id: "work-days", label: "Ngày công", module: "staff", group: "staff" },
-  // Thêm 2026-10-19: bảng lương và chỉ tiêu định hướng của phòng kinh doanh theo tháng.
-  { id: "salary", label: "Lương", module: "staff", group: "staff" },
+  // Thêm 2026-10-19: chỉ tiêu định hướng của phòng kinh doanh theo tháng. File lương
+  // xuất ở màn Lương từ 2026-11-16.
   { id: "directed-accounts", label: "Tài khoản định hướng", module: "staff", group: "staff" },
   { id: "services-by-ward", label: "Dịch vụ theo xã", module: "services", group: "services" },
   { id: "vneid", label: "Tích hợp VNeID", module: "vneid", group: "services" },
@@ -141,7 +137,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
 const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days", "bank-not-opened"];
 
 /** File có số của mọi phòng, nên route đòi `staff:export` phạm vi `company`. */
-const COMPANY_ONLY: ReportId[] = ["salary", "directed-accounts"];
+const COMPANY_ONLY: ReportId[] = ["directed-accounts"];
 
 /**
  * Điều kiện này phải khớp chốt của route xuất tương ứng; lệch nhau thì người
@@ -426,13 +422,6 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "grantedByTitle", header: "CHỨC VỤ", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Nhân viên kinh doanh", "Dịch vụ"], value: (r: HelmetNoodleRow) => r.grantedByTitle || "—" },
       ];
     }
-
-    /**
-     * Cột theo file làm tay T9, chốt 2026-10-19. Sheet "Không tính điểm phòng"
-     * dùng đúng các cột đã tick, thêm cột LÝ DO ở cuối, xem `RUN.salary`.
-     */
-    case "salary":
-      return salaryExportColumns();
 
     case "directed-accounts": {
       const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
@@ -981,15 +970,6 @@ export default function ExportsPage() {
       return rows.length;
     },
 
-    /**
-     * Hai sheet, chốt 2026-10-19: sheet chính, và sheet riêng cho Nhân viên bị
-     * đánh dấu không tính điểm phòng của tháng.
-     */
-    async salary() {
-      const columns: ExcelColumn<SalaryExportRow>[] = buildColumns(catalogFor("salary", banks, staffById), exportOrder);
-      return exportSalaryWorkbook(month, await fetchSalaryExport(month), columns);
-    },
-
     async "directed-accounts"() {
       const rows = await fetchDirectedExport(month, directedResult);
       const [year, mm] = month.split("-");
@@ -1334,7 +1314,7 @@ export default function ExportsPage() {
                 </>
               )}
 
-              {(active === "salary" || active === "directed-accounts") && (
+              {active === "directed-accounts" && (
                 <div className={styles.field} role="group" aria-label="Tháng">
                   <span className={styles.fieldLabel} aria-hidden>
                     Tháng
@@ -1484,7 +1464,6 @@ export default function ExportsPage() {
               {active !== "staff-points" &&
                 active !== "order-stats" &&
                 active !== "work-days" &&
-                active !== "salary" &&
                 active !== "directed-accounts" && (
                 <DateRangePicker
                   // Báo cáo #5 lọc theo NGÀY HUỶ, #6 theo NGÀY PHÁT QUÀ, các báo

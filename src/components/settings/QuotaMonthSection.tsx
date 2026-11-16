@@ -130,6 +130,7 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       queryClient.setQueryData(["quota-month", data.month], next);
       // P-51/P-52 đọc mốc điểm KPI của tháng: đổi xong phải thấy ngay ở đó.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       toast.ok(`Đã lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}`);
     },

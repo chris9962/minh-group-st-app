@@ -33,7 +33,6 @@ import {
   users,
 } from "./db/schema";
 import { departmentPointsFrom, pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
-import { salaryForUsers } from "./salary";
 
 /**
  * P-91 · Phòng ban — bản DB của src/mocks/org.ts, cùng luật:
@@ -337,7 +336,7 @@ export async function setDepartmentActive(
 export async function departmentDetailFor(
   id: string,
   visible: string[] | null,
-  /** Tháng đang xem; người quản lý và lương của họ đọc theo nhân sự của tháng đó. */
+  /** Tháng đang xem; người quản lý đọc theo nhân sự của tháng đó. */
   yearMonth: string = businessMonth(),
 ): Promise<DepartmentDetail | null> {
   // Ngoài phạm vi thì trả `null` — route đổi thành 404. Trả 403 là nói ra rằng
@@ -371,8 +370,6 @@ export async function departmentDetailFor(
         .innerJoin(staffRoster, inMonth)
         .where(and(inArray(staffRoster.role, DIRECTOR_ROLES), eq(staffRoster.active, true)))
     : listed;
-  const salaryMonth = yearMonth;
-  const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), salaryMonth);
 
   return {
     department: {
@@ -387,21 +384,7 @@ export async function departmentDetailFor(
       active: department.active,
       headcount: await headcountOf(id),
     },
-    managers: managers.map((manager) => {
-      const salary = managerSalary.get(manager.id);
-      return {
-        ...manager,
-        salary: salary?.amount ?? 0,
-        salaryBreakdown: {
-          month: salaryMonth,
-          facts: salary?.facts ?? [],
-          items: salary?.items ?? [],
-          revenue: salary?.revenue,
-          pointsAmount: salary?.pointsAmount ?? 0,
-          adjustments: salary?.adjustments ?? [],
-        },
-      };
-    }),
+    managers,
     managedByDefault,
   };
 }

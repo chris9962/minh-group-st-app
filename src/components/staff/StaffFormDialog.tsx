@@ -212,6 +212,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       // `["staff"]` là bảng P-51, `["staff-one", id]` là `AccountCard`,
       // `["person"]` là hồ sơ điểm P-52.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["payroll"] });
       if (staff) queryClient.invalidateQueries({ queryKey: ["staff-one", staff.id] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       if (!credentials) {

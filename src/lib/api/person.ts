@@ -199,6 +199,8 @@ export type BranchDepartment = z.infer<typeof BranchDepartment>;
  */
 export const BranchSummary = z.object({
   salaryMonth: z.string(),
+  /** Người xem có quyền Lương với mọi phòng của nhánh. `false` thì mọi ô `salary` là 0 và giao diện ẩn cột lương. */
+  salaryVisible: z.boolean(),
   departments: z.array(BranchDepartment),
   totals: BranchDepartment.omit({ id: true, name: true }),
 });
@@ -227,9 +229,9 @@ export const PersonDetail = z.object({
     total: z.number(),
     target: z.number(),
   }),
-  /** Lương CĐS đang tính của tháng KPI hiện tại. */
-  salary: z.number(),
-  salaryBreakdown: SalaryBreakdown,
+  /** Lương CĐS đang tính của tháng KPI hiện tại. `null` khi người xem không có quyền Lương với người này. */
+  salary: z.number().nullable(),
+  salaryBreakdown: SalaryBreakdown.nullable(),
   pointSources: z.array(PointSource),
   /** Từng lần cộng điểm tay của tháng đang xem, cũ trước mới sau. */
   adjustments: z.array(KpiAdjustment),
