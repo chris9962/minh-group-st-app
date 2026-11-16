@@ -42,6 +42,11 @@ export const RELEASES: Release[] = [
         visibleTo: canImportVpaTargets,
       },
       {
+        title: 'Lương Phó giám đốc',
+        items: ['Lương tháng 10/2026: phòng có nhiều Phó GĐ cùng phụ trách thì phần của phòng chia đều cho từng người.'],
+        visibleTo: (user) => user.role === 'deputy-director' || can(user, 'system', 'close-salary'),
+      },
+      {
         title: 'Quản lý ngân hàng',
         items: ['Ô Lý do lỗi thêm gợi ý TK KH Ở TRẠNG THÁI BLOCKED.'],
         visibleTo: (user) => canOpenPath(user, '/settings/banks'),
