@@ -12,6 +12,7 @@ const COMMON_REASONS = [
   "ẢNH KHÔNG ĐÚNG NGÂN HÀNG",
   "ẢNH KHÔNG CÙNG 1 TÀI KHOẢN",
   "THIẾU ẢNH GIAO DỊCH",
+  "TK KH Ở TRẠNG THÁI BLOCKED",
 ];
 
 type Props = {
