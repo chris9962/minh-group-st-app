@@ -4,6 +4,7 @@ import {
   can,
   canOrg,
   canSeeAvailableReferralCodes,
+  canImportVpaTargets,
   canSeeMyReferralCodes,
   isFullAccess,
   scopeFor,
@@ -22,6 +23,36 @@ const seesCompanyDashboard = (user: User) =>
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-11-16',
+    version: '2.28.0',
+    title: 'Cập nhật ngày 16/11/2026',
+    summary: 'Nhập file chốt chỉ tiêu VPa: tự trừ điểm tài khoản không đạt và tính CASA.',
+    sections: [
+      {
+        title: 'File chốt chỉ tiêu VPa',
+        items: [
+          'Màn Ngân hàng, nút ba chấm > Nhập file chốt chỉ tiêu VPa.',
+          'Tài khoản VPa không đạt chỉ tiêu: người lập hồ sơ bị trừ điểm KPI.',
+          'File tháng 9 trừ vào lương tháng 10.',
+          'Nhân viên bị trừ điểm nhận thông báo.',
+          'Tài khoản đạt CASA tính vào lương trong cùng lượt nhập.',
+          'Bỏ mục Nhập file CASA.',
+        ],
+        visibleTo: canImportVpaTargets,
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: ['Ô Lý do lỗi thêm gợi ý TK KH Ở TRẠNG THÁI BLOCKED.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Bảo hiểm',
+        items: ['Cập nhật lại giao diện.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+    ],
+  },
   {
     id: '2026-11-13',
     version: '2.27.0',
