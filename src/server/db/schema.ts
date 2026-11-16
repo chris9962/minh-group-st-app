@@ -2687,6 +2687,26 @@ export const casaAccounts = pgTable(
 );
 
 /**
+ * Tài khoản VPa không đạt TMDK trong file chốt chỉ tiêu VPBank. `year_month` là
+ * tháng LƯƠNG nhận điểm trừ: file tháng M trừ vào lương tháng M+1, vì lương
+ * tháng M đã chốt khi file về (chốt 2026-11-15). `points` là điểm combo khách
+ * mất. Khoá chính là tài khoản: một tài khoản chỉ trừ điểm một lần.
+ */
+export const vpaUnqualifiedAccounts = pgTable(
+  "vpa_unqualified_accounts",
+  {
+    bankAccountId: uuid("bank_account_id")
+      .primaryKey()
+      .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    yearMonth: text("year_month").notNull(),
+    points: numeric("points", { precision: 10, scale: 2 }).notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("vpa_unqualified_accounts_month").on(t.yearMonth)],
+);
+
+/**
  * Điểm KPI đã tính, một dòng mỗi người mỗi tháng.
  *
  * ⚠️ Đây là ngoại lệ so với `mgst-db-design.md` §9 ("điểm KPI không lưu"). Lý do

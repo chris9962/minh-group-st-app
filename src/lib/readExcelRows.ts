@@ -60,11 +60,15 @@ function cellText(value: CellValue, numFmt: string | undefined, rate = false): s
  *
  * `anySheet`: đọc trang tính đầu tiên có đủ cột bắt buộc. File CASA của ngân
  * hàng để bảng chi tiết ở trang thứ ba, sau hai trang tổng hợp.
+ *
+ * `headerAcrossRows`: tên cột nằm rải trên nhiều dòng đầu. File chốt chỉ tiêu
+ * VPBank để CCCD ở dòng 1, còn STK, TMDK, CASA XÉT ở dòng 3. Dữ liệu bắt đầu
+ * sau dòng chứa cột bắt buộc cuối cùng.
  */
 export async function readExcelRows<K extends string>(
   file: File,
   spec: ColumnSpec<K>,
-  { anySheet = false }: { anySheet?: boolean } = {},
+  { anySheet = false, headerAcrossRows = false }: { anySheet?: boolean; headerAcrossRows?: boolean } = {},
 ): Promise<ExcelRow<K>[]> {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
@@ -79,8 +83,9 @@ export async function readExcelRows<K extends string>(
   let best = new Map<K, number>();
 
   for (const candidate of sheets) {
+    const stacked = new Map<K, number>();
     for (let r = 1; r <= Math.min(HEADER_SEARCH_ROWS, candidate.rowCount); r++) {
-      const found = new Map<K, number>();
+      const found = headerAcrossRows ? stacked : new Map<K, number>();
       candidate.getRow(r).eachCell((cell, col) => {
         const text = headerKey(cellText(cell.value, cell.numFmt));
         const key = keys.find(
@@ -92,7 +97,7 @@ export async function readExcelRows<K extends string>(
         header = { row: r, columns: found };
         break;
       }
-      if (found.size > best.size) best = found;
+      if (found.size > best.size) best = new Map(found);
     }
     if (header.row !== 0) {
       sheet = candidate;

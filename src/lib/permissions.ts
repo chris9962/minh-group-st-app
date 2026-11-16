@@ -309,6 +309,11 @@ export function canConfigureWards(user: User | null): boolean {
   return can(user, 'system', 'configure-wards') || can(user, 'system', 'configure-catalog');
 }
 
+/** Nhập file chốt chỉ tiêu VPBank: lượt ghi vừa thêm CASA vừa trừ điểm KPI, nên phải đủ hai quyền. */
+export function canImportVpaTargets(user: User | null): boolean {
+  return can(user, 'system', 'configure-catalog') && can(user, 'system', 'adjust-kpi');
+}
+
 /**
  * Lọc một danh sách ngân hàng xuống đúng phạm vi người này SỬA được.
  *

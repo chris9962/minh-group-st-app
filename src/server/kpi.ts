@@ -511,6 +511,91 @@ export async function bankingPointsByCustomer(
 }
 
 /**
+ * Điểm combo mỗi khách mất khi một tài khoản `done` của khách đó thành lỗi:
+ * điểm hiện tại trừ điểm khi tài khoản đó nằm trong `broken`. Combo 3 hạ
+ * xuống Combo 2, Combo 2 về 0 theo `lostCombo2Customers`. Không đổi trạng thái
+ * tài khoản nào.
+ *
+ * Dùng cho file chốt chỉ tiêu VPBank (chốt 2026-11-15): lương tháng của hồ sơ
+ * đã chốt, nên phần mất ghi thành điểm trừ ở lương tháng sau.
+ *
+ * `failing`: mã khách → mã tài khoản không đạt. Trả về mã tài khoản → điểm mất.
+ */
+export async function comboLossByAccount(
+  conn: Db,
+  failing: ReadonlyMap<string, string>,
+): Promise<Map<string, number>> {
+  const loss = new Map<string, number>();
+  const customerIds = [...failing.keys()];
+  if (customerIds.length === 0) return loss;
+
+  const rows = await conn
+    .select({
+      id: bankAccounts.id,
+      customerId: bankAccounts.customerId,
+      bankCode: banks.code,
+      appInstalled: bankAccounts.appInstalled,
+      openedDate: customerDayText,
+      household: bankAccounts.accountType,
+      status: bankAccounts.status,
+      departmentCode: departments.code,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .leftJoin(departments, eq(departments.id, customers.originDepartmentId))
+    .where(
+      and(
+        inArray(bankAccounts.customerId, customerIds),
+        inArray(bankAccounts.status, ["done", ...BROKEN_STATUSES]),
+      ),
+    );
+
+  const granted = new Map(
+    (
+      await conn
+        .select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem })
+        .from(giftGrants)
+        .where(inArray(giftGrants.customerId, customerIds))
+    ).map((g) => [g.customerId, g.chosenItem]),
+  );
+
+  type Row = { id: string; account: ScoringAccount };
+  const doneOf = new Map<string, Row[]>();
+  const brokenOf = new Map<string, ScoringAccount[]>();
+  for (const r of rows) {
+    const account: ScoringAccount = {
+      customerId: r.customerId,
+      bankCode: r.bankCode,
+      appInstalled: r.appInstalled,
+      openedDate: r.openedDate ?? "",
+      household: r.household,
+      departmentCode: r.departmentCode,
+    };
+    if (r.status === "done") doneOf.set(r.customerId, [...(doneOf.get(r.customerId) ?? []), { id: r.id, account }]);
+    else brokenOf.set(r.customerId, [...(brokenOf.get(r.customerId) ?? []), account]);
+  }
+
+  for (const [customerId, accountId] of failing) {
+    const done = doneOf.get(customerId) ?? [];
+    const target = done.find((d) => d.id === accountId);
+    if (!target) continue;
+    const broken = brokenOf.get(customerId) ?? [];
+    // Mọi tài khoản của một hồ sơ chung ngày hồ sơ, nên chung tháng tính điểm.
+    const yearMonth = target.account.openedDate.slice(0, 7);
+    const before = bankingPointsFor(done.map((d) => d.account), yearMonth, granted, broken);
+    const after = bankingPointsFor(
+      done.filter((d) => d.id !== accountId).map((d) => d.account),
+      yearMonth,
+      granted,
+      [...broken, target.account],
+    );
+    loss.set(accountId, roundPoints(before - after));
+  }
+  return loss;
+}
+
+/**
  * Loại phòng của một người — `null` khi họ không thuộc phòng nào (Ban giám đốc,
  * tài khoản quản trị).
  *

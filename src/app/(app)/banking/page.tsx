@@ -11,10 +11,10 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { AvailableReferralCodesDialog } from "@/components/banking/AvailableReferralCodesDialog";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
-import { CasaImportDialog } from "@/components/banking/CasaImportDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { MyReferralCodesDialog } from "@/components/banking/MyReferralCodesDialog";
+import { VpaTargetImportDialog } from "@/components/banking/VpaTargetImportDialog";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -52,6 +52,7 @@ import { useCreateIntent } from "@/lib/useCreateIntent";
 import { canOpenPath } from "@/lib/nav";
 import {
   can,
+  canImportVpaTargets,
   canSeeAvailableReferralCodes,
   canSeeMyReferralCodes,
   recordVisibility,
@@ -131,8 +132,8 @@ export default function BankingPage() {
   // Có cả MGT lẫn Phát phiếu thì gom vào nút ba chấm; chỉ một việc thì giữ nút riêng (chốt 2026-10-31).
   const splitBlanks = can(user, "banking", "split-blanks");
   // Cùng quyền với màn Chỉ tiêu tháng, luôn nằm trong nút ba chấm (chốt 2026-11-09).
-  const importCasa = can(user, "system", "configure-catalog");
-  const [casaOpen, setCasaOpen] = useState(false);
+  const importVpaTargets = canImportVpaTargets(user);
+  const [vpaTargetsOpen, setVpaTargetsOpen] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
@@ -535,7 +536,7 @@ export default function BankingPage() {
             </FilterField>
           ) : null}
         </FilterButton>
-        {(seeReferralCodes && splitBlanks) || importCasa ? (
+        {(seeReferralCodes && splitBlanks) || importVpaTargets ? (
           <MoreActionsMenu
             label="Thao tác khác"
             items={[
@@ -545,8 +546,8 @@ export default function BankingPage() {
               ...(splitBlanks
                 ? [{ label: "Phát phiếu", icon: <Layers size={16} aria-hidden />, onSelect: () => router.push("/banking/blanks") }]
                 : []),
-              ...(importCasa
-                ? [{ label: "Nhập file CASA", icon: <FileSpreadsheet size={16} aria-hidden />, onSelect: () => setCasaOpen(true) }]
+              ...(importVpaTargets
+                ? [{ label: "Nhập file chốt chỉ tiêu VPa", icon: <FileSpreadsheet size={16} aria-hidden />, onSelect: () => setVpaTargetsOpen(true) }]
                 : []),
             ]}
           />
@@ -678,7 +679,7 @@ export default function BankingPage() {
         )}
 
         {creating && <CreateBankAccountDialog open onClose={() => setCreating(false)} />}
-        {casaOpen && <CasaImportDialog open onClose={() => setCasaOpen(false)} />}
+        {vpaTargetsOpen && <VpaTargetImportDialog open onClose={() => setVpaTargetsOpen(false)} />}
         {editingId && (
           <BankAccountEditDialog
             open

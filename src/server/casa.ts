@@ -1,31 +1,30 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { BANK_ACCOUNT_STATUS_LABEL } from "@/lib/api/bankAccounts";
-import type { CasaFileRow, CasaImportRequest, CasaImportResult, CasaMonth, CasaPreviewRow } from "@/lib/api/casa";
+import type { CasaFileRow, CasaMonth, CasaPreviewRow } from "@/lib/api/casa";
 import { removeDiacritics } from "@/lib/format";
-import type { User } from "@/lib/types";
-import { closedMonthMessage, isMonthClosed, lockSalaryMonth } from "./closedMonths";
+import { isMonthClosed } from "./closedMonths";
 import { db } from "./db/client";
 import { bankAccounts, banks, casaAccounts, customers, users } from "./db/schema";
 
-type Conn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Conn = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type Outcome<T> = { ok: true; result: T } | { ok: false; message: string };
 
 /** File CASA hiện chỉ có của VPBank, ghi nhận vào dòng VPa của app. */
-const CASA_BANK_CODE = "VPa";
+export const CASA_BANK_CODE = "VPa";
 
 /** CCCD luôn bắt đầu bằng 0 (mã tỉnh 001–096), mà ô số trong Excel bỏ mất số 0 đó. */
-const normalizeIdNumber = (raw: string) => {
+export const normalizeIdNumber = (raw: string) => {
   const v = raw.replace(/\s/g, "");
   return /^\d{11}$/.test(v) ? `0${v}` : v;
 };
 
 /** STK của VPa là SĐT; ô số trong Excel bỏ mất số 0 đầu, nên so sau khi bỏ số 0 đầu. */
-const accountKey = (raw: string) => raw.replace(/\D/g, "").replace(/^0+/, "");
+export const accountKey = (raw: string) => raw.replace(/\D/g, "").replace(/^0+/, "");
 
-const nameKey = (raw: string) => removeDiacritics(raw).toUpperCase().replace(/\s+/g, " ").trim();
+export const nameKey = (raw: string) => removeDiacritics(raw).toUpperCase().replace(/\s+/g, " ").trim();
 
-type Candidate = {
+export type Candidate = {
   id: string;
   accountNumber: string | null;
   status: keyof typeof BANK_ACCOUNT_STATUS_LABEL;
@@ -40,7 +39,7 @@ type Candidate = {
  * Khách có 2 tài khoản VPa (thường và HKD) thì đánh dấu tài khoản thường (chủ
  * dự án chốt 2026-11-10). Cùng loại thì chọn tài khoản trùng STK.
  */
-function pickAccount(candidates: Candidate[], fileAccount: string): Candidate {
+export function pickAccount<T extends Candidate>(candidates: T[], fileAccount: string): T {
   const key = accountKey(fileAccount);
   const sameNumber = (c: Candidate) => key !== "" && accountKey(c.accountNumber ?? "") === key;
   return [...candidates].sort(
@@ -51,7 +50,7 @@ function pickAccount(candidates: Candidate[], fileAccount: string): Candidate {
   )[0];
 }
 
-async function checkRows(
+export async function checkRows(
   conn: Conn,
   rows: CasaFileRow[],
 ): Promise<{ preview: CasaPreviewRow[]; accountIds: string[] }> {
@@ -172,38 +171,6 @@ const countOfMonth = async (conn: Conn, month: string) => {
 export async function getCasaMonth(month: string): Promise<CasaMonth> {
   const [count, locked] = await Promise.all([countOfMonth(db, month), isMonthClosed(month)]);
   return { month, count, locked };
-}
-
-/**
- * Nhập file CASA cho lương tháng `month`. `commit: false` chỉ trả bảng kiểm.
- * Chỉ ghi thêm tài khoản chưa nhập ở tháng lương nào (chủ dự án chốt
- * 2026-11-09). Có một dòng lỗi thì không ghi.
- */
-export async function importCasaFile(
-  actor: User,
-  month: string,
-  request: CasaImportRequest,
-): Promise<Outcome<CasaImportResult>> {
-  if (await isMonthClosed(month)) return { ok: false, message: closedMonthMessage(month) };
-
-  if (!request.commit) {
-    const { preview } = await checkRows(db, request.rows);
-    return { ok: true, result: { rows: preview, written: 0 } };
-  }
-
-  return db.transaction(async (tx): Promise<Outcome<CasaImportResult>> => {
-    await lockSalaryMonth(tx, month);
-    if (await isMonthClosed(month, tx)) return { ok: false, message: closedMonthMessage(month) };
-    const { preview, accountIds } = await checkRows(tx, request.rows);
-    const errorRows = preview.filter((r) => r.errors.length > 0).length;
-    if (errorRows > 0) return { ok: false, message: `File có ${errorRows} dòng lỗi.` };
-    if (accountIds.length === 0) return { ok: false, message: "File không có tài khoản mới." };
-
-    await tx
-      .insert(casaAccounts)
-      .values(accountIds.map((bankAccountId) => ({ bankAccountId, yearMonth: month, createdBy: actor.id })));
-    return { ok: true, result: { rows: preview, written: accountIds.length } };
-  });
 }
 
 /**

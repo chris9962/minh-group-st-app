@@ -1205,6 +1205,13 @@
       "when": 1789891400099,
       "tag": "0172_social_insurance_records_plan_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1789891400100,
+      "tag": "0173_vpa_unqualified_accounts",
+      "breakpoints": true
     }
   ]
 }
