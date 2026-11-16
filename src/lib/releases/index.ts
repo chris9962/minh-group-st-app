@@ -24,6 +24,69 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-17',
+    version: '2.29.0',
+    title: 'Cập nhật ngày 17/11/2026',
+    summary: 'Quyền Lương tách khỏi Nhân sự; ShopeePay 0,4 điểm, cộng thêm 0,2 khi có ảnh khách nhận quà.',
+    sections: [
+      {
+        title: 'Thể lệ từ ngày 11/11/2026',
+        items: [
+          'Áp cho hồ sơ khách từ 11/11/2026.',
+          'ShopeePay cộng 0,4 điểm.',
+          'ShopeePay có ảnh khách nhận quà: cộng thêm 0,2 điểm.',
+        ],
+      },
+      {
+        title: 'Mở tài khoản ShopeePay',
+        items: ['Hộp thoại Sửa có mục Ảnh khách nhận quà.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Lương',
+        items: [
+          'Phòng có chấm công: tháng 31 ngày tính tối đa 27 ngày công, tháng khác tối đa 26 ngày.',
+          'Áp từ lương tháng 10/2026.',
+        ],
+        visibleTo: (user) => attendanceModeOf(user) !== null || canOpenPath(user, '/payroll'),
+      },
+      {
+        title: 'Điểm trừ VPa',
+        items: [
+          'Khối Điểm trừ có nút Xem chi tiết: từng khách bị trừ điểm, điểm trước và sau khi trừ.',
+          'Bấm thông báo trừ điểm mở đúng tháng lương bị trừ.',
+        ],
+      },
+      {
+        title: 'Nhân sự',
+        items: [
+          'Quyền Nhân sự không còn xem được lương.',
+          'Bảng Nhân sự và trang chi tiết phòng không còn cột lương.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Quyền Lương',
+        items: [
+          'Phần Quyền có module Lương: Xem chi tiết, Xuất dữ liệu, Chốt lương, Duyệt tạm ứng lương, Kế toán xử lý tạm ứng lương.',
+          'Trưởng phòng, Phó phòng, Phó GĐ xem lương Phòng tôi quản. Người khác xem lương Của tôi.',
+          'Xem lương Toàn công ty và Xuất dữ liệu: cấp tay cho từng người.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'grant-permission'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Bỏ báo cáo Lương. File lương xuất ở nút Xuất Excel của màn Lương.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'salary', 'export'),
+      },
+      {
+        title: 'Phòng ban',
+        items: ['Phòng có chấm công có 2 ô Ngày công tối đa: Tháng 31 ngày, Tháng dưới 31 ngày.'],
+        visibleTo: (user) => canOrg(user, 'update'),
+      },
+    ],
+  },
+  {
     id: '2026-11-16',
     version: '2.28.0',
     title: 'Cập nhật ngày 16/11/2026',

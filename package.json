@@ -1,6 +1,6 @@
 {
   "name": "mgst-app",
-  "version": "2.28.0",
+  "version": "2.29.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -52,6 +52,7 @@
     "db:announce-release": "bun --env-file=.env.local scripts/db-announce-release.ts",
     "db:backfill-policy-gcn": "bun --env-file=.env.local scripts/db-backfill-policy-gcn.ts",
     "db:backfill-origin-department": "bun --env-file=.env.local scripts/db-backfill-origin-department.ts",
+    "db:backfill-vpa-deduction-detail": "bun --env-file=.env.local scripts/db-backfill-vpa-deduction-detail.ts",
     "db:recount-blanks": "bun --env-file=.env.local scripts/db-recount-blanks.ts",
     "db:enqueue-photo-checks": "bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts",
     "db:grant-configure-wards": "bun --env-file=.env.local scripts/db-grant-configure-wards.ts",
