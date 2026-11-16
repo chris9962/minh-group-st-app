@@ -1226,6 +1226,13 @@
       "when": 1789891400300,
       "tag": "0175_photo_kind_gift",
       "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1789891400400,
+      "tag": "0176_department_max_work_days",
+      "breakpoints": true
     }
   ]
 }

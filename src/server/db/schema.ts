@@ -237,6 +237,9 @@ export const departments = pgTable("departments", {
   noonOutFrom: time("noon_out_from"),
   afternoonInUntil: time("afternoon_in_until"),
   afternoonOutFrom: time("afternoon_out_from"),
+  /** Trần ngày công khi phòng có chấm công (migration 0176). Phòng không chấm công không đọc. */
+  maxWorkDays31: smallint("max_work_days_31").notNull().default(27),
+  maxWorkDaysUnder31: smallint("max_work_days_under_31").notNull().default(26),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -399,6 +402,9 @@ export const staffMonths = pgTable(
     fixedSalary: integer("fixed_salary"),
     /** Cách chấm công của phòng người đó cuối tháng (migration 0140). */
     attendanceMode: attendanceMode("attendance_mode"),
+    /** Trần ngày công của phòng người đó cuối tháng (migration 0176). */
+    maxWorkDays31: smallint("max_work_days_31"),
+    maxWorkDaysUnder31: smallint("max_work_days_under_31"),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.yearMonth], name: "staff_months_pk" }),
@@ -430,6 +436,8 @@ export const staffRoster = pgView("staff_roster", {
   fixedSalary: integer("fixed_salary"),
   /** Tháng đang chạy đọc `departments.attendance_mode`, tháng đã chụp đọc bản chụp. */
   attendanceMode: attendanceMode("attendance_mode"),
+  maxWorkDays31: smallint("max_work_days_31"),
+  maxWorkDaysUnder31: smallint("max_work_days_under_31"),
 }).existing();
 
 /**

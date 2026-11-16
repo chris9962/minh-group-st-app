@@ -78,13 +78,20 @@ test("ngừng hoạt động phải hỏi lại", async ({ page }) => {
   expect(await row.innerText()).toBe(before);
 });
 
-test("phòng còn người thì khoá nút ngừng VÀ nói vì sao", async ({ page }) => {
-  const blocked = page.locator("button[disabled]", { hasText: "Ngừng hoạt động" });
-  test.skip((await blocked.count()) === 0, "không phòng nào còn người");
+test("phòng còn người thì khoá nút ngừng", async ({ page }) => {
+  const res = await page.request.get("/api/org/departments?search=");
+  const { departments } = (await res.json()) as {
+    departments: { name: string; active: boolean; headcount: number }[];
+  };
+  const busy = departments.find((d) => d.active && d.headcount > 0);
+  test.skip(!busy, "không phòng nào còn người");
 
-  // Nút mờ mà không giải thích chính là chỗ người dùng mắc kẹt.
-  await expect(page.locator("main")).toContainText(/Không ngừng hoạt động được/i);
-  await expect(page.locator("main")).toContainText(/chuyển hết người sang phòng khác/i);
+  // Tìm theo tên có thể ra cả "Phòng 1" lẫn "Phòng 10", nên bám nút Sửa mang đúng tên.
+  await page.getByRole("searchbox", { name: "Tìm phòng ban" }).fill(busy!.name);
+  const row = page
+    .locator("table tbody tr")
+    .filter({ has: page.getByRole("button", { name: `Sửa phòng ${busy!.name}`, exact: true }) });
+  await expect(row.getByRole("button", { name: /^Ngừng hoạt động$/ })).toBeDisabled();
 });
 
 test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
@@ -126,6 +133,43 @@ test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
   await renamed.getByRole("button", { name: `Sửa phòng ${name} 2` }).click();
   await expect(dialog(page).getByLabel(/Loại phòng/)).toHaveValue("sales");
   await expect(dialog(page).getByLabel(/Chấm công/)).toHaveValue("");
+});
+
+test("phòng có chấm công mới có ô ngày công tối đa, lưu và đọc lại đúng số", async ({ page }) => {
+  const name = `${TAG} phòng ngày công`;
+
+  await page.getByRole("button", { name: "Thêm phòng ban" }).click();
+  const box = dialog(page);
+  await box.getByLabel(/Tên phòng/).fill(name);
+  await expect(box.getByLabel("Tháng 31 ngày")).toHaveCount(0);
+
+  await box.getByLabel(/Chấm công/).selectOption("daily");
+  await expect(box.getByLabel("Tháng 31 ngày")).toHaveValue("27");
+  await expect(box.getByLabel("Tháng dưới 31 ngày")).toHaveValue("26");
+
+  await box.getByLabel("Tháng 31 ngày").fill("0");
+  await box.getByRole("button", { name: "Tạo phòng ban" }).click();
+  await expect(box).toContainText("Nhập số ngày từ 1 tới 31");
+
+  await box.getByLabel("Tháng 31 ngày").fill("25");
+  await box.getByLabel("Tháng dưới 31 ngày").fill("24");
+  await box.getByRole("button", { name: "Tạo phòng ban" }).click();
+  await expect(box).toBeHidden({ timeout: 10_000 });
+
+  await page.getByRole("searchbox", { name: "Tìm phòng ban" }).fill(name);
+  await page.waitForTimeout(500);
+  const created = page.locator("table tbody tr").filter({ hasText: name }).first();
+  await created.getByRole("button", { name: `Sửa phòng ${name}` }).click();
+  const edit = dialog(page);
+  await expect(edit.getByLabel("Tháng 31 ngày")).toHaveValue("25");
+  await expect(edit.getByLabel("Tháng dưới 31 ngày")).toHaveValue("24");
+
+  // Ô đang trống mà tắt chấm công thì ô ẩn đi, Lưu vẫn phải được.
+  await edit.getByLabel("Tháng 31 ngày").fill("");
+  await edit.getByLabel(/Chấm công/).selectOption("");
+  await expect(edit.getByLabel("Tháng 31 ngày")).toHaveCount(0);
+  await edit.getByRole("button", { name: /Lưu/ }).click();
+  await expect(edit).toBeHidden({ timeout: 10_000 });
 });
 
 /**

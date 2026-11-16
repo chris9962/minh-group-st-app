@@ -61,6 +61,8 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
       type: departments.type,
       attendanceMode: departments.attendanceMode,
       ...departmentWindowColumns,
+      maxWorkDays31: departments.maxWorkDays31,
+      maxWorkDaysUnder31: departments.maxWorkDaysUnder31,
       active: departments.active,
       headcount: count(users.id),
     })
@@ -167,18 +169,28 @@ async function nextDepartmentCode(name: string): Promise<string> {
 const windowsFor = (mode: AttendanceMode | null, windows: AttendanceWindows): AttendanceWindows =>
   mode === "slots" ? windows : NO_ATTENDANCE_WINDOWS;
 
+export type WorkDayCaps = { maxWorkDays31: number; maxWorkDaysUnder31: number };
+
 export async function createDepartment(
   name: string,
   type: DepartmentType,
   attendanceMode: AttendanceMode | null,
   attendanceWindows: AttendanceWindows,
+  workDayCaps: WorkDayCaps,
 ): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   const insert = async (): Promise<OrgOutcome> => {
     const [row] = await db
       .insert(departments)
-      .values({ code: await nextDepartmentCode(name), name, type, attendanceMode, ...windowsFor(attendanceMode, attendanceWindows) })
+      .values({
+        code: await nextDepartmentCode(name),
+        name,
+        type,
+        attendanceMode,
+        ...windowsFor(attendanceMode, attendanceWindows),
+        ...workDayCaps,
+      })
       .returning();
     return {
       ok: true,
@@ -189,6 +201,8 @@ export async function createDepartment(
         type: row.type,
         attendanceMode: row.attendanceMode,
         attendanceWindows: windowsFromColumns(row),
+        maxWorkDays31: row.maxWorkDays31,
+        maxWorkDaysUnder31: row.maxWorkDaysUnder31,
         active: row.active,
         headcount: 0,
       },
@@ -231,6 +245,7 @@ export async function updateDepartment(
   type: DepartmentType,
   attendanceMode: AttendanceMode | null,
   attendanceWindows: AttendanceWindows,
+  workDayCaps: WorkDayCaps,
 ): Promise<OrgOutcome | null> {
   const [current] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!current) return null;
@@ -241,7 +256,14 @@ export async function updateDepartment(
   try {
     [row] = await db
       .update(departments)
-      .set({ name, type, attendanceMode, ...windowsFor(attendanceMode, attendanceWindows), updatedAt: sql`now()` })
+      .set({
+        name,
+        type,
+        attendanceMode,
+        ...windowsFor(attendanceMode, attendanceWindows),
+        ...workDayCaps,
+        updatedAt: sql`now()`,
+      })
       .where(eq(departments.id, id))
       .returning();
   } catch (e) {
@@ -266,6 +288,8 @@ export async function updateDepartment(
       type: row.type,
       attendanceMode: row.attendanceMode,
       attendanceWindows: windowsFromColumns(row),
+      maxWorkDays31: row.maxWorkDays31,
+      maxWorkDaysUnder31: row.maxWorkDaysUnder31,
       active: row.active,
       headcount: await headcountOf(id),
     },
@@ -298,6 +322,8 @@ export async function setDepartmentActive(
       type: row.type,
       attendanceMode: row.attendanceMode,
       attendanceWindows: windowsFromColumns(row),
+      maxWorkDays31: row.maxWorkDays31,
+      maxWorkDaysUnder31: row.maxWorkDaysUnder31,
       active: row.active,
       headcount,
     },
@@ -356,6 +382,8 @@ export async function departmentDetailFor(
       type: department.type,
       attendanceMode: department.attendanceMode,
       attendanceWindows: windowsFromColumns(department),
+      maxWorkDays31: department.maxWorkDays31,
+      maxWorkDaysUnder31: department.maxWorkDaysUnder31,
       active: department.active,
       headcount: await headcountOf(id),
     },

@@ -91,9 +91,9 @@ function quotaResult(
  *
  * Không chấm chỉ tiêu định hướng: thông báo không có mục đó.
  */
-function atmStaff({ points, workDays, bonusCombos = 0 }: StaffSalaryInput): SalaryResult {
+function atmStaff({ points, workDays, bonusCombos = 0, maxWorkDays }: StaffSalaryInput): SalaryResult {
   const direct = roundPoints(points);
-  const days = Math.min(workDays, ATM_MAX_DAYS);
+  const days = Math.min(workDays, maxWorkDays ?? ATM_MAX_DAYS);
   const tier1 = Math.min(Math.max(direct, 0), 100);
   const tier2 = Math.min(Math.max(direct - 100, 0), 30);
   const tier3 = Math.min(Math.max(direct - 130, 0), 30);
@@ -128,7 +128,7 @@ export function staff(input: StaffSalaryInput): SalaryResult {
   const casaPoints = roundPoints(casaAccounts * CASA_POINTS);
   const direct = roundPoints(points + (directed?.points ?? 0) + casaPoints);
   const social = input.scheme === "social";
-  const days = Math.min(workDays, social ? SOCIAL_MAX_DAYS : MAX_DAYS);
+  const days = Math.min(workDays, input.maxWorkDays ?? (social ? SOCIAL_MAX_DAYS : MAX_DAYS));
   const tier1 = Math.min(Math.max(direct, 0), 100);
   const tier2 = Math.min(Math.max(direct - 100, 0), 30);
   const tier3 = Math.min(Math.max(direct - 130, 0), 30);
@@ -140,7 +140,7 @@ export function staff(input: StaffSalaryInput): SalaryResult {
     { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
     {
       label: "Hỗ trợ ăn ca",
-      formula: `${days} ngày × 120.000đ`,
+      formula: `${formatPoints(days)} ngày × 120.000đ`,
       amount: days * DAILY_SUPPORT,
       // An Sinh không có dòng "Ngày công" ở trên: số ngày nằm ở dòng này, kể cả khi 0đ.
       keepAtZero: social,
@@ -173,7 +173,7 @@ export function staff(input: StaffSalaryInput): SalaryResult {
       ...(directed || casaAccounts > 0
         ? [{ label: "Điểm tính lương", value: `${formatPoints(direct)} điểm` }]
         : []),
-      ...(social ? [] : [{ label: "Ngày công", value: `${days} ngày` }]),
+      ...(social ? [] : [{ label: "Ngày công", value: `${formatPoints(days)} ngày` }]),
     ],
     items,
   };
@@ -183,8 +183,8 @@ export function staff(input: StaffSalaryInput): SalaryResult {
  * Lương cứng (spec mục 5.2): nguyên số tiền trên hồ sơ của tháng, cộng ăn ca
  * theo ngày công của chính người đó. Điểm KPI không đổi lương.
  */
-export function fixed({ amount, workDays }: FixedSalaryInput): SalaryResult {
-  const days = Math.min(workDays, FIXED_MAX_DAYS);
+export function fixed({ amount, workDays, maxWorkDays }: FixedSalaryInput): SalaryResult {
+  const days = Math.min(workDays, maxWorkDays ?? FIXED_MAX_DAYS);
   const items: SalaryItem[] = [
     amount === null
       ? { label: FIXED_SALARY_ITEM, formula: "Chưa nhập số tiền", amount: 0, keepAtZero: true }
@@ -264,6 +264,7 @@ export function manager({
   workDays,
   departmentQuota,
   casaAccounts = 0,
+  maxWorkDays,
 }: ManagerSalaryInput): SalaryResult {
   const direct = roundPoints(points);
   const reached = teamPoints.filter((p) => p >= 100).length;
@@ -273,7 +274,7 @@ export function manager({
     teamPoints.length === 0 ? 0 : teamPoints.reduce((sum, p) => sum + p, 0) / teamPoints.length;
   const overTargetStaff = teamPoints.filter((p) => p > 100).length;
   const poolShare = role === "head" ? 0.7 : 0.3;
-  const days = Math.min(workDays, MAX_DAYS);
+  const days = Math.min(workDays, maxWorkDays ?? MAX_DAYS);
   const rate = role === "head" ? 120_000 : 80_000;
   const items: SalaryItem[] = [
     {
@@ -299,7 +300,7 @@ export function manager({
       formula: `Trung bình ${formatPoints(roundPoints(average))} điểm của ${teamPoints.length} nhân viên - ${overTargetStaff} người vượt 100 điểm - ${role === "head" ? "70%" : "30%"} quỹ`,
       amount: departmentPool(average, overTargetStaff) * poolShare,
     },
-    { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
   ];
   return {
     amount: Math.max(0, Math.round(total(items))),
@@ -307,7 +308,7 @@ export function manager({
       { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
       { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
       { label: "Nhân viên trong phòng", value: `${teamPoints.length} người` },
-      { label: "Ngày công", value: `${days} ngày` },
+      { label: "Ngày công", value: `${formatPoints(days)} ngày` },
     ],
     items,
   };

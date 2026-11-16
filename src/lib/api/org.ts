@@ -22,8 +22,15 @@ export const DepartmentRow = Department.extend({
   /** Cách chấm công của cả phòng; rỗng là không chấm công. */
   attendanceMode: AttendanceMode.nullable(),
   attendanceWindows: AttendanceWindows,
+  maxWorkDays31: z.number(),
+  maxWorkDaysUnder31: z.number(),
 });
 export type DepartmentRow = z.infer<typeof DepartmentRow>;
+
+const maxWorkDays = z
+  .int('Nhập số ngày từ 1 tới 31')
+  .min(1, 'Nhập số ngày từ 1 tới 31')
+  .max(31, 'Nhập số ngày từ 1 tới 31');
 
 export const DepartmentList = z.object({
   summary: z.object({
@@ -71,8 +78,17 @@ export const DepartmentForm = z.object({
   attendanceMode: AttendanceMode.nullable(),
   /** Chỉ lưu khi phòng chấm 4 lượt có ảnh. */
   attendanceWindows: AttendanceWindows,
+  /** Trần ngày công khi phòng có chấm công; phòng không chấm công không đọc. */
+  maxWorkDays31: maxWorkDays,
+  maxWorkDaysUnder31: maxWorkDays,
 });
 export type DepartmentForm = z.infer<typeof DepartmentForm>;
+
+/** Đoạn nhật ký hoạt động; phòng không chấm công không đọc trần nên không ghi. */
+export const maxWorkDaysLabel = (d: Pick<DepartmentRow, 'attendanceMode' | 'maxWorkDays31' | 'maxWorkDaysUnder31'>): string =>
+  d.attendanceMode
+    ? ` - Ngày công tối đa: tháng 31 ngày ${d.maxWorkDays31}, tháng dưới 31 ngày ${d.maxWorkDaysUnder31}`
+    : '';
 
 export const ORG_ERROR = {
   NAME_TAKEN: 'name-taken',

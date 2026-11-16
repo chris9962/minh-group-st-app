@@ -24,6 +24,7 @@ import {
   DepartmentType,
 } from "@/lib/types";
 import { reportInvalid } from "@/lib/formErrors";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 
 const WINDOW_FIELDS: { key: keyof AttendanceWindows; label: string }[] = [
   { key: "morningInUntil", label: "Vào ca sáng khoá lúc" },
@@ -66,6 +67,8 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
       type: department?.type ?? "sales",
       attendanceMode: department?.attendanceMode ?? null,
       attendanceWindows: department?.attendanceWindows ?? NO_ATTENDANCE_WINDOWS,
+      maxWorkDays31: department?.maxWorkDays31 ?? 27,
+      maxWorkDaysUnder31: department?.maxWorkDaysUnder31 ?? 26,
     },
   });
 
@@ -143,9 +146,15 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
           label="Chấm công"
           block
           value={attendanceMode ?? ""}
-          onChange={(v) =>
-            setValue("attendanceMode", v === "" ? null : (v as AttendanceMode), { shouldDirty: true })
-          }
+          onChange={(v) => {
+            const mode = v === "" ? null : (v as AttendanceMode);
+            setValue("attendanceMode", mode, { shouldDirty: true });
+            // Ô ngày công ẩn khi tắt chấm công mà zod vẫn kiểm: trả về số đã lưu để không báo lỗi ở ô không thấy.
+            if (mode === null) {
+              setValue("maxWorkDays31", department?.maxWorkDays31 ?? 27);
+              setValue("maxWorkDaysUnder31", department?.maxWorkDaysUnder31 ?? 26);
+            }
+          }}
           error={errors.attendanceMode?.message}
           options={["", ...AttendanceMode.options].map((m) => ({
             value: m,
@@ -169,6 +178,28 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
                   }
                 />
               ))}
+            </div>
+          </fieldset>
+        )}
+
+        {attendanceMode !== null && (
+          <fieldset className={styles.windows}>
+            <legend className={styles.windowsLegend}>Ngày công tối đa</legend>
+            <div className={styles.windowGrid}>
+              <TextField
+                label="Tháng 31 ngày"
+                type="text"
+                inputMode="numeric"
+                error={errors.maxWorkDays31?.message}
+                {...numericField(register("maxWorkDays31", { setValueAs: numberValue }), digitsOnly)}
+              />
+              <TextField
+                label="Tháng dưới 31 ngày"
+                type="text"
+                inputMode="numeric"
+                error={errors.maxWorkDaysUnder31?.message}
+                {...numericField(register("maxWorkDaysUnder31", { setValueAs: numberValue }), digitsOnly)}
+              />
             </div>
           </fieldset>
         )}

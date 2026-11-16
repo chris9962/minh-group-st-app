@@ -65,6 +65,8 @@ export type StaffSalaryInput = {
   bonusCombos?: number;
   /** Điểm An Sinh theo nhóm loại và phương án, đã nằm trong `points`. Kỳ trước 2026-10 bỏ qua. */
   socialInsurance?: SocialInsuranceGroupInput[];
+  /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. Kỳ trước 2026-10 bỏ qua. */
+  maxWorkDays?: number | null;
 };
 
 export type SocialInsuranceGroupInput = {
@@ -87,6 +89,8 @@ export type ManagerSalaryInput = {
   departmentQuota?: DepartmentQuotaProgress | null;
   /** Số tài khoản đạt CASA của khách chính người này lập. Kỳ trước 2026-10 bỏ qua. */
   casaAccounts?: number;
+  /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. Kỳ trước 2026-10 bỏ qua. */
+  maxWorkDays?: number | null;
 };
 
 export type FixedSalaryInput = {
@@ -94,6 +98,8 @@ export type FixedSalaryInput = {
   amount: number | null;
   /** Số ngày công của chính người này, chưa cắt trần. */
   workDays: number;
+  /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. */
+  maxWorkDays?: number | null;
 };
 
 export type DeputyDirectorSalaryInput = {

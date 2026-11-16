@@ -96,8 +96,21 @@ type Subject = {
   departmentType: "sales" | "office" | null;
   /** Phòng có chấm công thì Trưởng/Phó phòng ăn ca theo ngày tự chấm, không theo ngày của phòng. */
   attendanceMode: AttendanceMode | null;
+  /** Trần ngày công của phòng có chấm công trong tháng đang tính; `null` là dùng trần của kỳ. */
+  maxWorkDays: number | null;
   points: number;
 };
+
+/** Tháng 31 ngày đọc ô 31 ngày, tháng khác đọc ô dưới 31 ngày (chủ dự án chốt 2026-11-16). */
+function maxWorkDaysOf(
+  row: { attendanceMode: AttendanceMode | null; maxWorkDays31: number | null; maxWorkDaysUnder31: number | null },
+  yearMonth: string,
+): number | null {
+  if (!row.attendanceMode) return null;
+  const [year, month] = yearMonth.split("-").map(Number);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return daysInMonth === 31 ? row.maxWorkDays31 : row.maxWorkDaysUnder31;
+}
 
 type StaffScore = {
   id: string;
@@ -200,6 +213,8 @@ async function liveSalaries(
       departmentCode: departments.code,
       departmentType: departments.type,
       attendanceMode: staffRoster.attendanceMode,
+      maxWorkDays31: staffRoster.maxWorkDays31,
+      maxWorkDaysUnder31: staffRoster.maxWorkDaysUnder31,
       managedDepartmentIds: staffRoster.managedDepartmentIds,
       points,
     })
@@ -214,7 +229,10 @@ async function liveSalaries(
       and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
     )
     .where(inArray(users.id, userIds));
-  const subjects: Subject[] = rosterRows;
+  const subjects: Subject[] = rosterRows.map(({ maxWorkDays31, maxWorkDaysUnder31, ...row }) => ({
+    ...row,
+    maxWorkDays: maxWorkDaysOf({ attendanceMode: row.attendanceMode, maxWorkDays31, maxWorkDaysUnder31 }, yearMonth),
+  }));
 
   const managedIdsByDeputyDirector = new Map(
     rosterRows
@@ -415,7 +433,8 @@ async function liveSalaries(
     // Người đã khoá cuối tháng mà không có ngày công nào thì không nhận lương cứng của tháng đó.
     const workDays = userDays.get(subject.id) ?? 0;
     if (subject.salaryScheme === "fixed" && rules.fixed) {
-      if (subject.active || workDays > 0) salary = rules.fixed({ amount: subject.fixedSalary, workDays });
+      if (subject.active || workDays > 0)
+        salary = rules.fixed({ amount: subject.fixedSalary, workDays, maxWorkDays: subject.maxWorkDays });
     } else if (subject.role === "staff" && subject.departmentType === "sales") {
       salary = rules.staff({
         points: subject.points,
@@ -430,6 +449,7 @@ async function liveSalaries(
           revenuePerPoint: group.revenuePerPoint,
           points: group.points,
         })),
+        maxWorkDays: subject.maxWorkDays,
       });
     } else if (
       (subject.role === "head" || subject.role === "deputy-head") &&
@@ -444,6 +464,7 @@ async function liveSalaries(
         workDays: subject.attendanceMode ? workDays : (departmentDays.get(subject.departmentId) ?? 0),
         departmentQuota: quota.department(subject.departmentId),
         casaAccounts: quota.casa(subject.id),
+        maxWorkDays: subject.maxWorkDays,
       });
     } else if (subject.role === "deputy-director" && rules.deputyDirector) {
       const managed = managedByUser.get(subject.id) ?? [];

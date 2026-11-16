@@ -1,5 +1,5 @@
 import { attendanceWindowsLabel } from "@/lib/api/attendance";
-import { DepartmentForm } from "@/lib/api/org";
+import { DepartmentForm, maxWorkDaysLabel } from "@/lib/api/org";
 import { ATTENDANCE_MODE_LABEL, DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
@@ -49,8 +49,11 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const { name, type, attendanceMode, attendanceWindows } = parsed.data;
-  const result = await updateDepartment(id, name, type, attendanceMode, attendanceWindows);
+  const { name, type, attendanceMode, attendanceWindows, maxWorkDays31, maxWorkDaysUnder31 } = parsed.data;
+  const result = await updateDepartment(id, name, type, attendanceMode, attendanceWindows, {
+    maxWorkDays31,
+    maxWorkDaysUnder31,
+  });
   if (!result) return notFound();
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
@@ -62,7 +65,7 @@ export async function POST(request: Request, { params }: Params) {
   await logAudit(actor, {
     module: "department",
     action: "update",
-    targetLabel: `Sửa phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}${windows ? ` - Giờ chấm: ${windows}` : ""}`,
+    targetLabel: `Sửa phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}${windows ? ` - Giờ chấm: ${windows}` : ""}${maxWorkDaysLabel(department)}`,
     targetTable: "departments",
     targetId: id,
   });

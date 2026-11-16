@@ -92,6 +92,22 @@ check(
 );
 check("PGĐ: chỉ tiêu HKD vẫn cộng", item(deputyMixed, "Chỉ tiêu HKD các phòng")?.amount, 10 * 150_000);
 
+// Trần ngày công của phòng có chấm công (chốt 2026-11-16), áp cả kỳ 2026-10
+const meal = (result: SalaryResult) => item(result, "Hỗ trợ ăn ca")?.amount;
+for (const [month, rules] of [["2026-10", oct], ["2026-11", nov]] as const) {
+  check(`${month} ATM không trần phòng: cắt 22`, meal(rules.staff({ ...atmBase, workDays: 30 })), 22 * 120_000);
+  check(`${month} ATM trần phòng 26: cắt 26`, meal(rules.staff({ ...atmBase, workDays: 30, maxWorkDays: 26 })), 26 * 120_000);
+  check(`${month} ATM trần phòng 27, 24 ngày công: 24`, meal(rules.staff({ ...atmBase, workDays: 24, maxWorkDays: 27 })), 24 * 120_000);
+  check(`${month} An Sinh trần phòng 27: cắt 27`, meal(rules.staff({ ...socialBase, workDays: 30, maxWorkDays: 27 })), 27 * 120_000);
+  check(`${month} NV kinh doanh trần phòng 27: cắt 27`, meal(rules.staff({ ...staffBase, workDays: 30, maxWorkDays: 27 })), 27 * 120_000);
+  check(`${month} NV kinh doanh không trần phòng: cắt 26`, meal(rules.staff({ ...staffBase, workDays: 30 })), 26 * 120_000);
+  check(`${month} Trưởng phòng trần phòng 27: cắt 27`, meal(rules.manager({ ...managerBase, workDays: 30, maxWorkDays: 27 })), 27 * 120_000);
+  check(`${month} Lương cứng trần phòng 26: cắt 26`, meal(rules.fixed!({ amount: 5_000_000, workDays: 30, maxWorkDays: 26 })), 26 * 120_000);
+  check(`${month} Lương cứng không trần phòng: cắt 22`, meal(rules.fixed!({ amount: 5_000_000, workDays: 30 })), 22 * 120_000);
+  check(`${month} NV kinh doanh nửa ngày công: dấu phẩy`, fact(rules.staff({ ...staffBase, workDays: 20.5 }), "Ngày công"), "20,5 ngày");
+  check(`${month} Trưởng phòng nửa ngày công: dấu phẩy`, item(rules.manager({ ...managerBase, workDays: 20.5 }), "Hỗ trợ ăn ca")?.formula, "20,5 ngày × 120.000đ");
+}
+
 if (failures.length > 0) {
   console.error(`Lương 2026-11: ${failures.length} ca sai, ${passed} ca đúng`);
   for (const f of failures) console.error(`  ✗ ${f}`);
