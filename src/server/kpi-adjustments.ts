@@ -34,6 +34,7 @@ const toRow = (
   reason: r.reason,
   date: businessDay(r.createdAt),
   createdByName,
+  vpaAccountCount: 0,
 });
 
 export async function createAdjustment(

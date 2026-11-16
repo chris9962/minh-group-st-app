@@ -519,13 +519,14 @@ export async function bankingPointsByCustomer(
  * Dùng cho file chốt chỉ tiêu VPBank (chốt 2026-11-15): lương tháng của hồ sơ
  * đã chốt, nên phần mất ghi thành điểm trừ ở lương tháng sau.
  *
- * `failing`: mã khách → mã tài khoản không đạt. Trả về mã tài khoản → điểm mất.
+ * `failing`: mã khách → mã tài khoản không đạt. Trả về mã tài khoản → điểm và
+ * ngân hàng `done` của khách trước, sau khi tài khoản đó lỗi.
  */
 export async function comboLossByAccount(
   conn: Db,
   failing: ReadonlyMap<string, string>,
-): Promise<Map<string, number>> {
-  const loss = new Map<string, number>();
+): Promise<Map<string, ComboLoss>> {
+  const loss = new Map<string, ComboLoss>();
   const customerIds = [...failing.keys()];
   if (customerIds.length === 0) return loss;
 
@@ -560,7 +561,7 @@ export async function comboLossByAccount(
     ).map((g) => [g.customerId, g.chosenItem]),
   );
 
-  type Row = { id: string; account: ScoringAccount };
+  type Row = { id: string; account: ScoringAccount; bankLabel: string };
   const doneOf = new Map<string, Row[]>();
   const brokenOf = new Map<string, ScoringAccount[]>();
   for (const r of rows) {
@@ -572,7 +573,9 @@ export async function comboLossByAccount(
       household: r.household,
       departmentCode: r.departmentCode,
     };
-    if (r.status === "done") doneOf.set(r.customerId, [...(doneOf.get(r.customerId) ?? []), { id: r.id, account }]);
+    const bankLabel = r.household === "none" ? r.bankCode : `${r.bankCode} ${r.household}`;
+    if (r.status === "done")
+      doneOf.set(r.customerId, [...(doneOf.get(r.customerId) ?? []), { id: r.id, account, bankLabel }]);
     else brokenOf.set(r.customerId, [...(brokenOf.get(r.customerId) ?? []), account]);
   }
 
@@ -583,17 +586,27 @@ export async function comboLossByAccount(
     const broken = brokenOf.get(customerId) ?? [];
     // Mọi tài khoản của một hồ sơ chung ngày hồ sơ, nên chung tháng tính điểm.
     const yearMonth = target.account.openedDate.slice(0, 7);
+    const kept = done.filter((d) => d.id !== accountId);
     const before = bankingPointsFor(done.map((d) => d.account), yearMonth, granted, broken);
-    const after = bankingPointsFor(
-      done.filter((d) => d.id !== accountId).map((d) => d.account),
-      yearMonth,
-      granted,
-      [...broken, target.account],
-    );
-    loss.set(accountId, roundPoints(before - after));
+    const after = bankingPointsFor(kept.map((d) => d.account), yearMonth, granted, [...broken, target.account]);
+    loss.set(accountId, {
+      points: roundPoints(before - after),
+      before,
+      after,
+      banksBefore: done.map((d) => d.bankLabel),
+      banksAfter: kept.map((d) => d.bankLabel),
+    });
   }
   return loss;
 }
+
+export type ComboLoss = {
+  points: number;
+  before: number;
+  after: number;
+  banksBefore: string[];
+  banksAfter: string[];
+};
 
 /**
  * Loại phòng của một người — `null` khi họ không thuộc phòng nào (Ban giám đốc,

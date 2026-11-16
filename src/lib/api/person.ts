@@ -126,6 +126,8 @@ export const KpiAdjustment = z.object({
   /** Ngày ghi, YYYY-MM-DD theo giờ làm việc. */
   date: z.string(),
   createdByName: z.string(),
+  /** Số tài khoản VPa không đạt của dòng trừ điểm từ file chốt chỉ tiêu VPa. Dòng ghi tay là 0. */
+  vpaAccountCount: z.number().int(),
 });
 export type KpiAdjustment = z.infer<typeof KpiAdjustment>;
 

@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { BANK_ACCOUNT_STATUS_LABEL } from "@/lib/api/bankAccounts";
 import type { CasaFileRow } from "@/lib/api/casa";
 import {
@@ -6,11 +6,12 @@ import {
   isQualifiedValue,
   type StaffDeduction,
   type UnqualifiedRow,
+  type VpaDeductedAccount,
   type VpaTargetFileRow,
   type VpaTargetImportRequest,
   type VpaTargetImportResult,
 } from "@/lib/api/vpaTargets";
-import { formatPoints, roundPoints } from "@/lib/format";
+import { formatPoints, monthRange, roundPoints } from "@/lib/format";
 import { parseMoneyCents } from "@/lib/money";
 import { shiftMonth } from "@/lib/period";
 import type { User } from "@/lib/types";
@@ -36,8 +37,9 @@ import {
   users,
   vpaUnqualifiedAccounts,
 } from "./db/schema";
-import { comboLossByAccount } from "./kpi";
+import { comboLossByAccount, type ComboLoss } from "./kpi";
 import { notify } from "./notifications";
+import { visibleStaffId } from "./people";
 
 const monthText = (yearMonth: string) => `${yearMonth.slice(5)}/${yearMonth.slice(0, 4)}`;
 
@@ -69,7 +71,7 @@ type Checked = {
   unqualified: UnqualifiedRow[];
   casa: VpaTargetImportResult["casa"];
   staff: StaffTotal[];
-  counted: (Counted & { points: number })[];
+  counted: (Counted & { points: number; combo: ComboLoss | null })[];
   casaIds: string[];
   casaRemoveIds: string[];
 };
@@ -198,7 +200,8 @@ async function checkFile(conn: Conn, rows: VpaTargetFileRow[]): Promise<Checked>
   const loss = await comboLossByAccount(conn, new Map(counted.map((c) => [c.customerId, c.accountId])));
   const totals = new Map<string, StaffTotal>();
   const countedWithPoints = counted.map((c) => {
-    const points = loss.get(c.accountId) ?? 0;
+    const combo = loss.get(c.accountId) ?? null;
+    const points = combo?.points ?? 0;
     unqualified[c.index] = { ...unqualified[c.index], points };
     const owner = owners.get(c.ownerId)!;
     const total = totals.get(c.ownerId) ?? {
@@ -210,7 +213,7 @@ async function checkFile(conn: Conn, rows: VpaTargetFileRow[]): Promise<Checked>
       active: owner.ownerActive,
     };
     totals.set(c.ownerId, { ...total, accounts: total.accounts + 1, points: roundPoints(total.points + points) });
-    return { ...c, points };
+    return { ...c, points, combo };
   });
 
   return {
@@ -274,16 +277,6 @@ export async function importVpaTargetFile(
     if (checked.counted.length === 0 && checked.casaIds.length === 0 && checked.casaRemoveIds.length === 0)
       return { ok: false, message: "File không có tài khoản mới." };
 
-    if (checked.counted.length > 0)
-      await tx.insert(vpaUnqualifiedAccounts).values(
-        checked.counted.map((c) => ({
-          bankAccountId: c.accountId,
-          yearMonth: month,
-          points: c.points.toFixed(2),
-          createdBy: actor.id,
-        })),
-      );
-
     const reason = deductionReason(month);
     const deductions: VpaTargetCommit["deductions"] = [];
     if (checked.staff.length > 0) {
@@ -302,6 +295,23 @@ export async function importVpaTargetFile(
       const staffOf = new Map(checked.staff.map((s) => [s.userId, s]));
       for (const row of inserted) deductions.push({ adjustmentId: row.id, staff: staffOf.get(row.userId)! });
     }
+
+    // Người có tổng điểm mất bằng 0 không có dòng điểm trừ, tài khoản của họ không nối dòng nào.
+    const adjustmentOf = new Map(deductions.map((d) => [d.staff.userId, d.adjustmentId]));
+    if (checked.counted.length > 0)
+      await tx.insert(vpaUnqualifiedAccounts).values(
+        checked.counted.map((c) => ({
+          bankAccountId: c.accountId,
+          yearMonth: month,
+          points: c.points.toFixed(2),
+          adjustmentId: adjustmentOf.get(c.ownerId) ?? null,
+          pointsBefore: c.combo?.before.toFixed(2) ?? null,
+          pointsAfter: c.combo?.after.toFixed(2) ?? null,
+          banksBefore: c.combo?.banksBefore ?? null,
+          banksAfter: c.combo?.banksAfter ?? null,
+          createdBy: actor.id,
+        })),
+      );
 
     if (checked.casaRemoveIds.length > 0)
       await tx.delete(casaAccounts).where(inArray(casaAccounts.bankAccountId, checked.casaRemoveIds));
@@ -355,5 +365,52 @@ export async function afterVpaTargetCommit(actor: User, month: string, commit: V
     await notify(staff.userId, "announcement", {
       title: `Đã tính lại điểm KPI tháng ${salaryMonth}`,
       body: `Điểm KPI tháng ${salaryMonth} của bạn bị trừ ${formatPoints(staff.points)} điểm cho ${staff.accounts} tài khoản. Lý do: ${result.reason}.`,
+      url: `/users/${staff.userId}?month=${month}`,
     }).catch(() => undefined);
+}
+
+/**
+ * Tài khoản nằm trong một dòng điểm trừ của file chốt chỉ tiêu VPa. `null` khi
+ * dòng không thuộc người đó, hoặc người xem không thấy hồ sơ người đó trong tháng
+ * của dòng. Nơi gọi đã hỏi `staff:view-detail` khi xem hồ sơ người khác.
+ */
+export async function deductedAccountsFor(
+  actor: User,
+  staffId: string,
+  adjustmentId: string,
+): Promise<VpaDeductedAccount[] | null> {
+  const [adjustment] = await db
+    .select({ yearMonth: kpiAdjustments.yearMonth })
+    .from(kpiAdjustments)
+    .where(and(eq(kpiAdjustments.id, adjustmentId), eq(kpiAdjustments.userId, staffId)))
+    .limit(1);
+  if (!adjustment) return null;
+  if (staffId !== actor.id && !(await visibleStaffId(actor, staffId, monthRange(adjustment.yearMonth)))) return null;
+
+  const rows = await db
+    .select({
+      bankAccountId: vpaUnqualifiedAccounts.bankAccountId,
+      customerId: customers.id,
+      customerName: customers.fullName,
+      accountNumber: bankAccounts.accountNumber,
+      points: vpaUnqualifiedAccounts.points,
+      pointsBefore: vpaUnqualifiedAccounts.pointsBefore,
+      pointsAfter: vpaUnqualifiedAccounts.pointsAfter,
+      banksBefore: vpaUnqualifiedAccounts.banksBefore,
+      banksAfter: vpaUnqualifiedAccounts.banksAfter,
+    })
+    .from(vpaUnqualifiedAccounts)
+    .innerJoin(bankAccounts, eq(bankAccounts.id, vpaUnqualifiedAccounts.bankAccountId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .where(eq(vpaUnqualifiedAccounts.adjustmentId, adjustmentId))
+    .orderBy(desc(vpaUnqualifiedAccounts.points), asc(customers.fullName));
+
+  const numberOrNull = (value: string | null) => (value === null ? null : Number(value));
+  return rows.map((r) => ({
+    ...r,
+    accountNumber: r.accountNumber ?? "",
+    points: Number(r.points),
+    pointsBefore: numberOrNull(r.pointsBefore),
+    pointsAfter: numberOrNull(r.pointsAfter),
+  }));
 }

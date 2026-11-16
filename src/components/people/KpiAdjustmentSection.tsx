@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CircleMinus, CirclePlus, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleMinus, CirclePlus, List, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -13,6 +13,7 @@ import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
 import { KpiAdjustmentFormDialog } from "./KpiAdjustmentFormDialog";
+import { VpaDeductionDialog } from "./VpaDeductionDialog";
 import styles from "./KpiAdjustmentSection.module.scss";
 
 type Props = { person: PersonDetail };
@@ -33,6 +34,7 @@ export function KpiAdjustmentSection({ person }: Props) {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<KpiAdjustment | null>(null);
   const [deleting, setDeleting] = useState<KpiAdjustment | null>(null);
+  const [viewing, setViewing] = useState<KpiAdjustment | null>(null);
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteKpiAdjustment(person.id, id),
@@ -79,6 +81,16 @@ export function KpiAdjustmentSection({ person }: Props) {
                   <span className={styles.meta}>
                     {a.createdByName} · {formatDate(a.date)}
                   </span>
+                  {a.vpaAccountCount > 0 && (
+                    <Button
+                      variant="secondary"
+                      className={styles.detail}
+                      onClick={() => setViewing(a)}
+                    >
+                      <List size={16} aria-hidden />
+                      Xem chi tiết {a.vpaAccountCount} tài khoản
+                    </Button>
+                  )}
                 </div>
                 <strong className={`${styles.points} tabular-nums`}>
                   {a.points > 0 ? `+${formatPoints(a.points)}` : formatPoints(a.points)}
@@ -121,6 +133,10 @@ export function KpiAdjustmentSection({ person }: Props) {
             setEditing(null);
           }}
         />
+      )}
+
+      {viewing && (
+        <VpaDeductionDialog personId={person.id} adjustmentId={viewing.id} onClose={() => setViewing(null)} />
       )}
 
       <ConfirmDialog

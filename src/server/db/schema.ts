@@ -2691,6 +2691,9 @@ export const casaAccounts = pgTable(
  * tháng LƯƠNG nhận điểm trừ: file tháng M trừ vào lương tháng M+1, vì lương
  * tháng M đã chốt khi file về (chốt 2026-11-15). `points` là điểm combo khách
  * mất. Khoá chính là tài khoản: một tài khoản chỉ trừ điểm một lần.
+ *
+ * Bốn cột `points_before`… chụp lúc nhập file, không tính lại: các tài khoản
+ * khác của khách còn đổi trạng thái về sau. Dòng nhập trước migration 0174 để trống.
  */
 export const vpaUnqualifiedAccounts = pgTable(
   "vpa_unqualified_accounts",
@@ -2700,10 +2703,18 @@ export const vpaUnqualifiedAccounts = pgTable(
       .references(() => bankAccounts.id, { onDelete: "cascade" }),
     yearMonth: text("year_month").notNull(),
     points: numeric("points", { precision: 10, scale: 2 }).notNull(),
+    adjustmentId: uuid("adjustment_id").references(() => kpiAdjustments.id, { onDelete: "set null" }),
+    pointsBefore: numeric("points_before", { precision: 10, scale: 2 }),
+    pointsAfter: numeric("points_after", { precision: 10, scale: 2 }),
+    banksBefore: text("banks_before").array(),
+    banksAfter: text("banks_after").array(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
   },
-  (t) => [index("vpa_unqualified_accounts_month").on(t.yearMonth)],
+  (t) => [
+    index("vpa_unqualified_accounts_month").on(t.yearMonth),
+    index("vpa_unqualified_accounts_adjustment").on(t.adjustmentId),
+  ],
 );
 
 /**

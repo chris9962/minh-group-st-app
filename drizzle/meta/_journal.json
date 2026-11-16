@@ -1212,6 +1212,13 @@
       "when": 1789891400100,
       "tag": "0173_vpa_unqualified_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1789891400200,
+      "tag": "0174_vpa_unqualified_detail",
+      "breakpoints": true
     }
   ]
 }

@@ -36,6 +36,11 @@
   color: var(--om-text-3);
 }
 
+.detail {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
 .points {
   font-weight: 600;
   white-space: nowrap;

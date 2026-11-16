@@ -96,3 +96,25 @@ export async function importVpaTargets(month: string, request: VpaTargetImportRe
   if (!res.ok) throw new Error(data?.message ?? 'Không nhập được file chốt chỉ tiêu');
   return VpaTargetImportResult.parse(data);
 }
+
+/** Một tài khoản VPa không đạt nằm trong một dòng điểm trừ. Bốn trường cuối `null` ở dòng nhập trước migration 0174. */
+export const VpaDeductedAccount = z.object({
+  bankAccountId: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  accountNumber: z.string(),
+  points: z.number(),
+  pointsBefore: z.number().nullable(),
+  pointsAfter: z.number().nullable(),
+  banksBefore: z.array(z.string()).nullable(),
+  banksAfter: z.array(z.string()).nullable(),
+});
+export type VpaDeductedAccount = z.infer<typeof VpaDeductedAccount>;
+
+export async function fetchVpaDeductedAccounts(personId: string, adjustmentId: string): Promise<VpaDeductedAccount[]> {
+  const res = await fetch(
+    `/api/people/${encodeURIComponent(personId)}/adjustments/${encodeURIComponent(adjustmentId)}/accounts`,
+  );
+  if (!res.ok) throw new Error('Không tải được danh sách tài khoản bị trừ điểm');
+  return z.array(VpaDeductedAccount).parse(await res.json());
+}

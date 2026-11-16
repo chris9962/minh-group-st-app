@@ -44,6 +44,7 @@ import {
   serviceTypes,
   staffRoster,
   users,
+  vpaUnqualifiedAccounts,
 } from "./db/schema";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { salaryForUsers } from "./salary";
@@ -757,6 +758,7 @@ export async function personFor(
       reason: kpiAdjustments.reason,
       date: sql<string>`to_char(${kpiAdjustments.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
       createdByName: users.fullName,
+      vpaAccountCount: sql<number>`(select count(*)::int from ${vpaUnqualifiedAccounts} where ${vpaUnqualifiedAccounts.adjustmentId} = ${kpiAdjustments.id})`,
     })
     .from(kpiAdjustments)
     .innerJoin(users, eq(users.id, kpiAdjustments.createdBy))
