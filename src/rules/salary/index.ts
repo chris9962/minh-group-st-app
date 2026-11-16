@@ -104,11 +104,18 @@ export type DeputyDirectorSalaryInput = {
    * tiêu" (`server/reach.ts`): Nhân viên, Trưởng, Phó phòng, gồm cả người đã khoá.
    * Kỳ trước 2026-10 bỏ qua.
    */
-  members: { points: number; target: number }[];
+  members: { points: number; target: number; share?: number }[];
   /** Tổng điểm các phòng phụ trách, gồm cả Phó phòng và người đã nghỉ có điểm. */
   branchPoints: number;
   /** Chỉ tiêu từng phòng phụ trách. Kỳ trước 2026-09 bỏ qua. */
-  departmentQuotas?: DepartmentQuotaProgress[];
+  departmentQuotas?: (DepartmentQuotaProgress & { share?: number })[];
+  /** Phòng có nhiều Phó GĐ cùng phụ trách, số CHƯA chia, để diễn giải ghi rõ phép chia. */
+  sharedDepartments?: {
+    name: string;
+    deputyDirectors: number;
+    points: number;
+    members: { points: number; target: number }[];
+  }[];
 };
 
 type SalaryRules = {
@@ -122,6 +129,12 @@ type SalaryRules = {
   quotaTarget?(target: number, departmentCode: string | null): number;
   /** Phòng không có chỉ tiêu định hướng thì nhân viên phòng đó cũng không chấm định hướng. */
   staffQuotaNeedsDepartmentQuota?: boolean;
+  /**
+   * Phòng có nhiều Phó GĐ cùng phụ trách trong tháng thì mỗi người nhận phần
+   * chia đều của phòng đó (`share`); `branchPoints` đã nhân sẵn. Kỳ không khai
+   * thì mỗi người nhận đủ.
+   */
+  deputyDirectorSharesDepartments?: boolean;
 };
 
 /** Khoá là THÁNG bắt đầu áp dụng. Tháng trước kỳ đầu tiên không có công thức lương. */

@@ -224,12 +224,19 @@ async function liveSalaries(
   const allManagedIds = [...new Set([...managedIdsByDeputyDirector.values()].flat())];
   const managedSalesDepartments = allManagedIds.length
     ? await db
-        .select({ departmentId: departments.id, departmentCode: departments.code })
+        .select({
+          departmentId: departments.id,
+          departmentCode: departments.code,
+          departmentName: departments.name,
+        })
         .from(departments)
         .where(and(inArray(departments.id, allManagedIds), eq(departments.type, "sales")))
     : [];
   const salesDepartmentCode = new Map(
     managedSalesDepartments.map((row) => [row.departmentId, row.departmentCode]),
+  );
+  const salesDepartmentName = new Map(
+    managedSalesDepartments.map((row) => [row.departmentId, row.departmentName]),
   );
   const managedByUser = new Map<string, string[]>();
   const managedRows: { userId: string; departmentId: string; departmentCode: string }[] = [];
@@ -243,6 +250,21 @@ async function liveSalaries(
         departmentCode: salesDepartmentCode.get(departmentId)!,
       });
   }
+
+  // Đếm trên MỌI Phó GĐ của tháng, không riêng `userIds`: xem lương một người vẫn phải chia đúng.
+  const deputyDirectorsByDepartment = new Map<string, number>();
+  if (rules.deputyDirectorSharesDepartments && managedRows.length > 0) {
+    const allDeputyDirectors = await db
+      .select({ managedDepartmentIds: staffRoster.managedDepartmentIds })
+      .from(staffRoster)
+      .where(and(eq(staffRoster.yearMonth, yearMonth), eq(staffRoster.role, "deputy-director")));
+    for (const departmentId of allDeputyDirectors.flatMap((row) => row.managedDepartmentIds))
+      deputyDirectorsByDepartment.set(
+        departmentId,
+        (deputyDirectorsByDepartment.get(departmentId) ?? 0) + 1,
+      );
+  }
+  const shareOf = (departmentId: string) => 1 / (deputyDirectorsByDepartment.get(departmentId) ?? 1);
 
   const relevantDepartmentIds = [
     ...new Set([
@@ -428,15 +450,29 @@ async function liveSalaries(
       if (managed.length > 0)
         salary = rules.deputyDirector({
           teamPoints: managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []),
-          members: managed.flatMap((departmentId) => reachByDepartment.get(departmentId) ?? []),
+          members: managed.flatMap((departmentId) =>
+            (reachByDepartment.get(departmentId) ?? []).map((member) => ({
+              ...member,
+              share: shareOf(departmentId),
+            })),
+          ),
           branchPoints: managed.reduce(
-            (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
+            (sum, departmentId) =>
+              sum + (branchPointsByDepartment.get(departmentId) ?? 0) * shareOf(departmentId),
             0,
           ),
           departmentQuotas: managed.flatMap((departmentId) => {
             const progress = quota.department(departmentId);
-            return progress ? [progress] : [];
+            return progress ? [{ ...progress, share: shareOf(departmentId) }] : [];
           }),
+          sharedDepartments: managed
+            .filter((departmentId) => shareOf(departmentId) < 1)
+            .map((departmentId) => ({
+              name: salesDepartmentName.get(departmentId)!,
+              deputyDirectors: deputyDirectorsByDepartment.get(departmentId)!,
+              points: branchPointsByDepartment.get(departmentId) ?? 0,
+              members: reachByDepartment.get(departmentId) ?? [],
+            })),
         });
     }
 

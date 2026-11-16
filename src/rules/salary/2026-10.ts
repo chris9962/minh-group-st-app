@@ -212,21 +212,38 @@ function quotaItems(
   return [{ label, formula, amount: result.points * rate, keepAtZero: true }];
 }
 
-/** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ `failPoints`. */
+/** Đếm theo phần chia: `[share, số lượng]`, phần đủ (1) luôn đứng đầu kể cả khi bằng 0. */
+function countByShare(shares: number[]): [number, number][] {
+  const counts = new Map<number, number>([[1, 0]]);
+  for (const share of shares) counts.set(share, (counts.get(share) ?? 0) + 1);
+  return [...counts].sort((x, y) => y[0] - x[0]);
+}
+
+/** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ `failPoints`; phòng chung tính theo `share`. */
 function branchQuotaItem(
-  quotas: (QuotaProgress | null)[],
+  quotas: { quota: QuotaProgress | null; share: number }[],
   label: string,
   failPoints: number,
 ): SalaryItem[] {
-  const scored = quotas.filter((q): q is QuotaProgress => q !== null);
+  const scored = quotas.filter((q): q is { quota: QuotaProgress; share: number } => q.quota !== null);
   if (scored.length === 0) return [];
-  const passed = scored.filter((q) => q.achieved >= q.target).length;
-  const failed = scored.length - passed;
-  const points = passed * 10 - failed * failPoints;
-  const formula =
-    failPoints > 0
-      ? `${passed} phòng đạt × 10 - ${failed} phòng thiếu × ${failPoints} = ${points} điểm × 150.000đ`
-      : `${passed} phòng đạt × 10 = ${points} điểm × 150.000đ`;
+  const isPassed = (q: (typeof scored)[number]) => q.quota.achieved >= q.quota.target;
+  const passed = countByShare(scored.filter(isPassed).map((q) => q.share));
+  const failed = countByShare(scored.filter((q) => !isPassed(q)).map((q) => q.share));
+  const sum = (groups: [number, number][]) => groups.reduce((t, [share, n]) => t + share * n, 0);
+  const points = sum(passed) * 10 - sum(failed) * failPoints;
+  // Ghi số phòng thật và mức của phòng chung: "4 phòng đạt" cho 3 phòng riêng + 2 phòng chung thì không ai hiểu.
+  const terms = (groups: [number, number][], word: string, unit: number) =>
+    groups.map(([share, n]) =>
+      share === 1
+        ? `${n} phòng ${word} × ${unit}`
+        : `${n} phòng chia ${Math.round(1 / share)} Phó GĐ ${word} × ${formatPoints(roundPoints(unit * share))}`,
+    );
+  const text = [
+    terms(passed, "đạt", 10).join(" + "),
+    ...(failPoints > 0 ? terms(failed, "thiếu", failPoints) : []),
+  ].join(" - ");
+  const formula = `${text} = ${formatPoints(roundPoints(points))} điểm × 150.000đ`;
   return [{ label, formula, amount: points * 150_000, keepAtZero: true }];
 }
 
@@ -296,34 +313,45 @@ export function manager({
   };
 }
 
+// Phòng có 2 Phó GĐ trong tháng thì mỗi người nhận 1/2 phần của phòng đó (chốt 2026-11-16).
+export const deputyDirectorSharesDepartments = true;
+
 export function deputyDirector({
   members,
   branchPoints,
   departmentQuotas = [],
+  sharedDepartments = [],
 }: DeputyDirectorSalaryInput): SalaryResult {
   const quotaItemsOfBranch = [
     ...branchQuotaItem(
-      departmentQuotas.map((q) => q.hkd),
+      departmentQuotas.map((q) => ({ quota: q.hkd, share: q.share ?? 1 })),
       "Chỉ tiêu HKD các phòng",
       20,
     ),
     ...branchQuotaItem(
-      departmentQuotas.map((q) => q.directed),
+      departmentQuotas.map((q) => ({ quota: q.directed, share: q.share ?? 1 })),
       "Chỉ tiêu định hướng các phòng",
       20,
     ),
   ];
   // Từ kỳ 2026-10 đếm cả Trưởng, Phó phòng và so với chỉ tiêu phòng thay mốc 100 (chốt 2026-10-30).
-  const reached = members.filter((m) => m.points >= m.target).length;
+  const reachedByShare = countByShare(
+    members.filter((m) => m.points >= m.target).map((m) => m.share ?? 1),
+  );
+  const reached = reachedByShare.reduce((sum, [share, n]) => sum + share * n, 0);
+  const reachedText = reachedByShare
+    .map(([share, n]) =>
+      share === 1
+        ? `${n} người × 3 điểm`
+        : `${n} người phòng chia ${Math.round(1 / share)} Phó GĐ × ${formatPoints(roundPoints(3 * share))} điểm`,
+    )
+    .join(" + ");
   const managementPoints = 3 * reached;
   const managementPay = managementPoints * 150_000;
-  const branchBonus =
-    2_000 * Math.min(Math.max(branchPoints, 0), 10_000) +
-    3_000 * Math.min(Math.max(branchPoints - 10_000, 0), 5_000) +
-    4_000 * Math.max(branchPoints - 15_000, 0);
   const tier1 = roundPoints(Math.min(Math.max(branchPoints, 0), 10_000));
   const tier2 = roundPoints(Math.min(Math.max(branchPoints - 10_000, 0), 5_000));
   const tier3 = roundPoints(Math.max(branchPoints - 15_000, 0));
+  const branchBonus = tier1 * 2_000 + tier2 * 3_000 + tier3 * 4_000;
   const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
   return {
     amount: Math.max(
@@ -334,11 +362,24 @@ export function deputyDirector({
       { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
       { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(branchPoints))} điểm` },
       { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
+      ...sharedDepartments.flatMap((d) => {
+        const reachedOfDepartment = d.members.filter((m) => m.points >= m.target).length;
+        return [
+          {
+            label: `Điểm của ${d.name}`,
+            value: `${formatPoints(roundPoints(d.points))} điểm ÷ ${d.deputyDirectors} Phó GĐ = ${formatPoints(roundPoints(d.points / d.deputyDirectors))} điểm`,
+          },
+          {
+            label: `Người đạt của ${d.name}`,
+            value: `${reachedOfDepartment} người ÷ ${d.deputyDirectors} Phó GĐ = ${formatPoints(roundPoints(reachedOfDepartment / d.deputyDirectors))} người`,
+          },
+        ];
+      }),
     ],
     items: [
       {
         label: "Nhân viên đạt 100 điểm",
-        formula: `${reached} người × 3 điểm × 150.000đ`,
+        formula: reachedByShare.length > 1 ? `(${reachedText}) × 150.000đ` : `${reachedText} × 150.000đ`,
         amount: managementPay,
       },
       ...quotaItemsOfBranch,
