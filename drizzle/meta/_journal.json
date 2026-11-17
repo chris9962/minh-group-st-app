@@ -1240,6 +1240,13 @@
       "when": 1789891400500,
       "tag": "0177_salary_module",
       "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1789891500500,
+      "tag": "0178_customer_change_owner",
+      "breakpoints": true
     }
   ]
 }

@@ -61,7 +61,7 @@ import {
 } from "@/lib/format";
 import { PAGE_SIZE } from "@/lib/api/pagination";
 import { canOpenPath } from "@/lib/nav";
-import { can, isFullAccess, lookupOnlyCustomer, recordInScope, recordVisibility } from "@/lib/permissions";
+import { can, lookupOnlyCustomer, recordInScope, recordVisibility } from "@/lib/permissions";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
@@ -395,8 +395,7 @@ export default function CustomerDetailPage({
                 <div className={styles.ownerRow}>
                   <dt>
                     <span>Người tạo</span>
-                    {actor &&
-                      isFullAccess(actor.permissions) &&
+                    {recordInScope(recordVisibility(actor, "customer", "change-owner"), data.customer) &&
                       !data.monthClosed &&
                       data.customer.createdByDepartmentId && (
                         <Button

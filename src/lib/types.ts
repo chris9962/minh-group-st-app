@@ -208,6 +208,11 @@ export const Action = z.enum([
   'approve-advance',
   /** Đặc biệt — salary (migration 0177): bước kế toán của tạm ứng lương, từ 13:00 ngày 10. */
   'pay-advance',
+  /**
+   * Đặc biệt — customer (migration 0178, chốt 2026-11-17): đổi người tạo hồ sơ
+   * khách sang nhân viên cùng phòng. Điểm KPI ngân hàng đi theo người nhận.
+   */
+  'change-owner',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -256,6 +261,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'record-attendance': 'Ghi công cho nhân viên',
   'approve-advance': 'Duyệt tạm ứng lương',
   'pay-advance': 'Kế toán xử lý tạm ứng lương',
+  'change-owner': 'Đổi người tạo',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -308,7 +314,7 @@ export const isScopeless = (module: ModuleKey, action: Action): boolean =>
   SCOPELESS_ACTIONS.includes(action) || (module === 'salary' && action === 'export');
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
-  customer: ['access-id-number', 'lookup'],
+  customer: ['access-id-number', 'lookup', 'change-owner'],
   insurance: ['handle-fallback', 'set-status', 'lookup', 'allocate-blanks', 'split-blanks'],
   banking: ['grant-gift', 'lookup', 'allocate-blanks', 'split-blanks'],
   vneid: ['lookup'],

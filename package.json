@@ -33,6 +33,7 @@
     "db:grant-view-ops": "bun --env-file=.env.local scripts/db-grant-view-ops.ts",
     "db:grant-lookup": "bun --env-file=.env.local scripts/db-grant-lookup.ts",
     "db:grant-exclude-department-points": "bun --env-file=.env.local scripts/db-grant-exclude-department-points.ts",
+    "db:grant-change-owner": "bun --env-file=.env.local scripts/db-grant-change-owner.ts",
     "db:grant-insurance-blanks": "bun --env-file=.env.local scripts/db-grant-insurance-blanks.ts",
     "db:grant-bank-blanks": "bun --env-file=.env.local scripts/db-grant-bank-blanks.ts",
     "db:grant-record-attendance": "bun --env-file=.env.local scripts/db-grant-record-attendance.ts",

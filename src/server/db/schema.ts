@@ -101,6 +101,8 @@ export const actionKey = pgEnum("action_key", [
   "approve-advance",
   // đặc biệt · salary: bước kế toán của tạm ứng lương (migration 0177)
   "pay-advance",
+  // đặc biệt · customer: đổi người tạo hồ sơ khách sang nhân viên cùng phòng (migration 0178)
+  "change-owner",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);

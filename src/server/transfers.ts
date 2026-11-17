@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { isNonBankCode, MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { CustomerLookupResult } from "@/lib/api/customers";
 import { businessDay } from "@/lib/format";
+import { recordInScope, recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { openBlockReasonAt } from "@/rules";
 import { slotConflict, slotConflictMessage } from "./banking";
@@ -28,16 +29,18 @@ type Outcome<T> = { ok: true; value: T } | { ok: false; message: string } | null
 /**
  * Chuyển hồ sơ khách sang nhân viên khác CÙNG PHÒNG.
  *
- * Đổi `created_by` trên hồ sơ và trên mọi bản ghi nghiệp vụ của hồ sơ: điểm KPI
- * ngân hàng đi theo người lập hồ sơ, còn phạm vi xem của màn danh sách đọc người
- * tạo bản ghi. Đổi một nửa thì người nhận có điểm mà không thấy tài khoản.
+ * Đổi `created_by` trên hồ sơ và trên mọi bản ghi nghiệp vụ DO NGƯỜI TẠO CŨ
+ * LẬP: điểm KPI ngân hàng đi theo người lập hồ sơ, còn phạm vi xem của màn danh
+ * sách và phôi đã sử dụng đọc người tạo bản ghi. Đổi một nửa thì người nhận có
+ * điểm mà không thấy tài khoản.
  *
- * Dịch vụ là ngoại lệ: chỉ chuyển dịch vụ do người tạo cũ làm. Dịch vụ người
- * khác ghi cho khách này vẫn là công của người đó (chủ dự án chốt 2026-10-03).
+ * Bản ghi người khác lập cho khách này giữ nguyên người lập: dịch vụ chốt
+ * 2026-10-03; tài khoản ngân hàng, đơn bảo hiểm, VNeID chốt 2026-11-17.
  *
  * Cùng phòng nên rổ quà Phòng Y không đổi.
  */
 export async function transferCustomerOwner(
+  actor: User,
   customerId: string,
   toUserId: string,
 ): Promise<Outcome<{ customerName: string; fromName: string; toName: string }>> {
@@ -51,6 +54,14 @@ export async function transferCustomerOwner(
     .from(customers)
     .where(eq(customers.id, customerId));
   if (!customer) return null;
+  // `can()` ở route chưa nói người này đổi được ĐÚNG hồ sơ này; ngoài phạm vi thì 404 như không có.
+  if (
+    !recordInScope(recordVisibility(actor, "customer", "change-owner"), {
+      createdById: customer.ownerId,
+      createdByDepartmentId: customer.departmentId,
+    })
+  )
+    return null;
 
   const [receiver] = await db
     .select({ fullName: users.fullName, departmentId: users.departmentId, active: users.active })
@@ -86,10 +97,20 @@ export async function transferCustomerOwner(
   await db.transaction(async (tx) => {
     const receiverOwns = { createdBy: toUserId, createdByDepartmentId: customer.departmentId };
     await tx.update(customers).set({ createdBy: toUserId }).where(eq(customers.id, customerId));
-    await tx.update(bankAccounts).set(receiverOwns).where(eq(bankAccounts.customerId, customerId));
-    await tx.update(insuranceOrders).set(receiverOwns).where(eq(insuranceOrders.customerId, customerId));
+    if (!customer.ownerId) return;
+    await tx
+      .update(bankAccounts)
+      .set(receiverOwns)
+      .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.createdBy, customer.ownerId)));
+    await tx
+      .update(insuranceOrders)
+      .set(receiverOwns)
+      .where(and(eq(insuranceOrders.customerId, customerId), eq(insuranceOrders.createdBy, customer.ownerId)));
     await tx.update(services).set(receiverOwns).where(ownServices);
-    await tx.update(vneidRecords).set(receiverOwns).where(eq(vneidRecords.customerId, customerId));
+    await tx
+      .update(vneidRecords)
+      .set(receiverOwns)
+      .where(and(eq(vneidRecords.customerId, customerId), eq(vneidRecords.createdBy, customer.ownerId)));
   });
 
   await recomputeGiftCase(customerId);

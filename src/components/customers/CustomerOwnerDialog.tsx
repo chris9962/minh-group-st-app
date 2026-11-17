@@ -10,7 +10,7 @@ import { fetchStaffOptions } from "@/lib/api/staff";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 
-/** Đổi người tạo hồ sơ khách sang nhân viên khác cùng phòng. Chỉ tài khoản toàn quyền mở được. */
+/** Đổi người tạo hồ sơ khách sang nhân viên khác cùng phòng. Quyền `customer:change-owner`. */
 export function CustomerOwnerDialog({
   customerId,
   ownerId,
@@ -35,7 +35,7 @@ export function CustomerOwnerDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      // Máy chủ đổi luôn người tạo của tài khoản, đơn bảo hiểm, dịch vụ và VNeID của khách.
+      // Máy chủ đổi luôn người tạo của tài khoản, đơn bảo hiểm, dịch vụ và VNeID do người tạo cũ lập.
       for (const key of ["bank-account-list", "bank-account-detail", "insurance-list", "insurance-detail", "services", "vneid"])
         queryClient.invalidateQueries({ queryKey: [key] });
       invalidateKpi(queryClient);
