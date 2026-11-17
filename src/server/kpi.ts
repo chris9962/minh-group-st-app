@@ -7,6 +7,7 @@ import type { BankAccountStatus } from "@/lib/api/bankAccounts";
 import type { SocialInsuranceKind, SocialInsurancePlan } from "@/lib/api/socialInsurance";
 import {
   bankingPointsFor,
+  householdPointsAt,
   kpiAppliesTo,
   multiBankComboCountFor,
   type ScoringAccount,
@@ -521,6 +522,10 @@ export async function bankingPointsByCustomer(
  * xuống Combo 2, Combo 2 về 0 theo `lostCombo2Customers`. Không đổi trạng thái
  * tài khoản nào.
  *
+ * Chỉ trừ phần TỔ HỢP (chủ dự án chốt 2026-11-17): điểm CNKD, HKD của khách
+ * giữ nguyên, kể cả khi CNKD nằm trên chính tài khoản không đạt. `household`
+ * là phần giữ lại đó, đã cộng vào `after`.
+ *
  * Dùng cho file chốt chỉ tiêu VPBank (chốt 2026-11-15): lương tháng của hồ sơ
  * đã chốt, nên phần mất ghi thành điểm trừ ở lương tháng sau.
  *
@@ -594,12 +599,20 @@ export async function comboLossByAccount(
     // Mọi tài khoản của một hồ sơ chung ngày hồ sơ, nên chung tháng tính điểm.
     const yearMonth = target.account.openedDate.slice(0, 7);
     const kept = done.filter((d) => d.id !== accountId);
+    const grantedItem = granted.get(customerId) ?? null;
     const before = bankingPointsFor(done.map((d) => d.account), yearMonth, granted, broken);
-    const after = bankingPointsFor(kept.map((d) => d.account), yearMonth, granted, [...broken, target.account]);
+    const household = roundPoints(
+      householdPointsAt(done.map((d) => d.account), target.account.openedDate, grantedItem) -
+        householdPointsAt(kept.map((d) => d.account), target.account.openedDate, grantedItem),
+    );
+    const after = roundPoints(
+      bankingPointsFor(kept.map((d) => d.account), yearMonth, granted, [...broken, target.account]) + household,
+    );
     loss.set(accountId, {
       points: roundPoints(before - after),
       before,
       after,
+      household,
       banksBefore: done.map((d) => d.bankLabel),
       banksAfter: kept.map((d) => d.bankLabel),
     });
@@ -611,6 +624,7 @@ export type ComboLoss = {
   points: number;
   before: number;
   after: number;
+  household: number;
   banksBefore: string[];
   banksAfter: string[];
 };
