@@ -34,6 +34,7 @@ import type {
  *   điểm KPI trước khi chia mốc; Trưởng/Phó phòng đạt chỉ tiêu CASA của phòng
  *   cộng 4, thiếu trừ 10; tài khoản tự mở cộng 0,2 điểm × 70.000đ. File CASA
  *   tháng M tính vào lương tháng M+1 (chốt 2026-11-09).
+ *   Chỉ tiêu CASA của phòng lấy của tháng M, cùng tháng với file (chốt 2026-11-17).
  *
  * Khác kỳ 2026-09: quản lý bị trừ lại khi thiếu chỉ tiêu HKD; Phòng Y và phòng
  * Dự án chấm đủ số admin nhập, không còn 50%.

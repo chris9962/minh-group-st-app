@@ -27,9 +27,11 @@ import { Button } from "@/components/ui/Button";
 import { ExcludeFromDepartmentDialog } from "@/components/staff/ExcludeFromDepartmentDialog";
 import { RestoreToDepartmentDialog } from "@/components/staff/RestoreToDepartmentDialog";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
+import { StatStack } from "@/components/ui/StatStack";
 import { SocialInsuranceHeadline } from "@/components/socialInsurance/SocialInsuranceHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
-import { formatPoints, monthRange } from "@/lib/format";
+import { formatCount, formatPoints, monthRange } from "@/lib/format";
+import { shiftMonth } from "@/lib/period";
 import { formatCents } from "@/lib/money";
 import {
   fetchDepartmentDetail,
@@ -160,6 +162,19 @@ function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): Ra
   ];
 }
 
+const monthNumber = (yearMonth: string) => Number(yearMonth.slice(5));
+
+/** File CASA tháng M tính vào lương tháng M+1, nên nhãn nêu cả hai tháng. */
+const casaLabel = (yearMonth: string) =>
+  `CASA tháng ${monthNumber(yearMonth)}, file tháng ${monthNumber(shiftMonth(yearMonth, -1))}`;
+
+const casaColumn = (yearMonth: string): RankColumn<StaffRow> => ({
+  key: "casaAccounts",
+  label: casaLabel(yearMonth),
+  sortBy: (s) => s.casaAccounts,
+  render: (s) => <Count n={s.casaAccounts} />,
+});
+
 const startOfDay = (isoDate: string) => new Date(`${isoDate}T00:00:00`);
 
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
@@ -254,11 +269,18 @@ export default function DepartmentDetailPage({
         </Button>
       ),
   };
+  const casaMonth = staffData?.summaryMonth ?? month;
+  const pointsIndex = EMPLOYEE_COLUMNS.findIndex((c) => c.key === "rangePoints");
+  const salesColumns = [
+    ...EMPLOYEE_COLUMNS.slice(0, pointsIndex),
+    casaColumn(casaMonth),
+    ...EMPLOYEE_COLUMNS.slice(pointsIndex),
+  ];
   const columns = social
     ? socialColumns((userId) => revenueById.get(userId))
     : canExclude
-      ? [...EMPLOYEE_COLUMNS, exclusionColumn]
-      : EMPLOYEE_COLUMNS;
+      ? [...salesColumns, exclusionColumn]
+      : salesColumns;
 
   const periodLabel =
     period.kind === "today"
@@ -297,6 +319,7 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
+      casaAccounts: sum.casaAccounts + staff.casaAccounts,
       // Khớp tổng điểm phòng ở tiêu đề khối, nơi người bị loại không được cộng.
       points: sum.points + (staff.excludedFromDepartment ? 0 : (staff.rangePoints ?? 0)),
     }),
@@ -305,6 +328,7 @@ export default function DepartmentDetailPage({
       customersWithAccounts: 0,
       accounts: 0,
       services: 0,
+      casaAccounts: 0,
       points: 0,
     },
   );
@@ -348,6 +372,7 @@ export default function DepartmentDetailPage({
         <Count key="customersWithAccounts" n={totals.customersWithAccounts} />,
         <Count key="accounts" n={totals.accounts} />,
         <Count key="services" n={totals.services} />,
+        <Count key="casaAccounts" n={totals.casaAccounts} />,
         pointsCell,
       ];
 
@@ -392,7 +417,24 @@ export default function DepartmentDetailPage({
                 <SkeletonStats count={3} />
               )
             ) : summary ? (
-              <BankingHeadline summary={summary} periodLabel={periodLabel} />
+              <BankingHeadline summary={summary} periodLabel={periodLabel}>
+                {staffData?.casa && (
+                  <StatStack
+                    items={[
+                      {
+                        value:
+                          staffData.casa.target === null
+                            ? formatCount(staffData.casa.count)
+                            : `${formatCount(staffData.casa.count)} / ${formatCount(staffData.casa.target)}`,
+                        label:
+                          staffData.casa.target === null
+                            ? casaLabel(casaMonth)
+                            : `${casaLabel(casaMonth)} / chỉ tiêu tháng ${monthNumber(shiftMonth(casaMonth, -1))}`,
+                      },
+                    ]}
+                  />
+                )}
+              </BankingHeadline>
             ) : (
               <SkeletonStats count={3} />
             )}

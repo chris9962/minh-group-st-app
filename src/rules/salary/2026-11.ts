@@ -35,6 +35,7 @@ import type {
  *   điểm KPI trước khi chia mốc; Trưởng/Phó phòng đạt chỉ tiêu CASA của phòng
  *   cộng 4, thiếu trừ 10; tài khoản tự mở cộng 0,2 điểm × 70.000đ. File CASA
  *   tháng M tính vào lương tháng M+1 (chốt 2026-11-09).
+ *   Chỉ tiêu CASA của phòng lấy của tháng M, cùng tháng với file (chốt 2026-11-17).
  */
 
 const DAILY_SUPPORT = 120_000;

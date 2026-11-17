@@ -545,7 +545,9 @@ export async function quotaProgressFor(
   const casa = (userId: string) => casaByUser.get(userId) ?? 0;
 
   const none = { staff: () => null, department: () => null, casa };
-  const config = await quotaConfigOf(yearMonth);
+  // File CASA tháng M-1 tính vào lương tháng M, nên chấm theo chỉ tiêu CASA tháng M-1 (chốt 2026-11-17).
+  const casaMonth = shiftMonth(yearMonth, -1);
+  const [config, casaConfig] = await Promise.all([quotaConfigOf(yearMonth), quotaConfigOf(casaMonth)]);
   if (!config) return none;
 
   const needsDepartmentQuota = salaryRulesFor(yearMonth)?.staffQuotaNeedsDepartmentQuota ?? false;
@@ -567,7 +569,7 @@ export async function quotaProgressFor(
         .map((s) => s.departmentId!),
       ...managedRows.map((row) => row.departmentId),
     ]),
-  ].filter((id) => config.departments.has(id));
+  ].filter((id) => config.departments.has(id) || casaConfig?.departments.has(id));
 
   const [directedByStaff, hkdByDepartment, directedByDepartment, casaByDepartment] = await Promise.all([
     countQuotaAccounts(yearMonth, config.directedKinds, "creator", staffIds),
@@ -599,22 +601,28 @@ export async function quotaProgressFor(
         : null,
     department: (departmentId) => {
       const targets = config.departments.get(departmentId);
-      if (!targets) return null;
+      const casaTarget = casaConfig?.departments.get(departmentId)?.casa ?? null;
+      if (!targets && !casaTarget) return null;
       const code = codeOfDepartment.get(departmentId) ?? null;
       const hkd = progress(
-        targets.hkd,
+        targets?.hkd ?? null,
         config.hkdKinds.length,
         hkdByDepartment.get(departmentId),
         code,
       );
       const directed = progress(
-        targets.directed,
+        targets?.directed ?? null,
         config.directedKinds.length,
         directedByDepartment.get(departmentId),
         code,
       );
       // CASA không có danh sách loại tài khoản: file CASA đã chỉ rõ từng tài khoản.
-      const casaQuota = progress(targets.casa, 1, casaByDepartment.get(departmentId), code);
+      const casaQuota: QuotaProgress | null = casaTarget
+        ? {
+            target: quotaTargetFor(casaMonth, casaTarget, code),
+            achieved: casaByDepartment.get(departmentId) ?? 0,
+          }
+        : null;
       return hkd || directed || casaQuota ? { hkd, directed, casa: casaQuota } : null;
     },
     casa,

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/api/staff";
 import { fixedSalaryOf } from "@/lib/api/staff";
 import type { ProfileInfoForm } from "@/lib/api/profile";
+import { shiftMonth } from "@/lib/period";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
 import {
   assignableRoles,
@@ -37,9 +38,12 @@ import {
 } from "@/lib/types";
 import { forbidden, isUuid, notFound, uuidParam } from "./auth";
 import { closeBankStaffBlanks, reopenBankStaffBlanks } from "./bankBlanks";
+import { countCasaAccounts } from "./casa";
 import { isMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
+import { quotaConfigOf } from "./quota";
+import { quotaTargetFor } from "@/rules/salary";
 import { closeStaffBlanks, reopenStaffBlanks } from "./insuranceBlanks";
 import {
   departmentPointsFrom,
@@ -270,6 +274,7 @@ async function rosterPage(
         lockedOffTarget: 0,
       },
       departmentPoints: null,
+      casa: null,
       monthClosed: false,
       page: { rows: [], total: 0 },
     };
@@ -440,6 +445,15 @@ async function rosterPage(
   ]);
   const excluded = excludedByMonth.get(summaryMonth);
 
+  // CASA chỉ trang chi tiết phòng hiện; màn P-51 không lọc một phòng thì khỏi đọc.
+  const casaDepartmentId = query.departmentId || null;
+  const [casaByStaff, casa] = casaDepartmentId
+    ? await Promise.all([
+        countCasaAccounts(summaryMonth, "creator", accounts.map((a) => a.id)),
+        departmentCasa(summaryMonth, casaDepartmentId),
+      ])
+    : [new Map<string, number>(), null];
+
   const onTarget = counts?.onTarget ?? 0;
 
   return {
@@ -454,6 +468,7 @@ async function rosterPage(
       lockedOffTarget: counts?.lockedOffTarget ?? 0,
     },
     departmentPoints,
+    casa,
     monthClosed,
     page: {
       rows: accounts.map((a) => ({
@@ -469,11 +484,27 @@ async function rosterPage(
         accounts: countsById.get(a.id)?.accounts ?? 0,
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
+        casaAccounts: casaByStaff.get(a.id) ?? 0,
         excludedFromDepartment: excluded?.has(a.id) ?? false,
         month: summaryMonth,
       })),
       total: totals?.value ?? 0,
     },
+  };
+}
+
+/** Số tài khoản CASA ghi nhận cho phòng và chỉ tiêu CASA tháng trước của phòng, cùng cách chấm với lương. */
+async function departmentCasa(yearMonth: string, departmentId: string) {
+  const targetMonth = shiftMonth(yearMonth, -1);
+  const [byDepartment, config, [department]] = await Promise.all([
+    countCasaAccounts(yearMonth, "department", [departmentId]),
+    quotaConfigOf(targetMonth),
+    db.select({ code: departments.code }).from(departments).where(eq(departments.id, departmentId)),
+  ]);
+  const target = config?.departments.get(departmentId)?.casa ?? null;
+  return {
+    count: byDepartment.get(departmentId) ?? 0,
+    target: target ? quotaTargetFor(targetMonth, target, department?.code ?? null) : null,
   };
 }
 

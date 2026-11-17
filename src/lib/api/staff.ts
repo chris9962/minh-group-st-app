@@ -95,6 +95,8 @@ export const StaffRow = StaffAccount.extend({
    * tạo bản ghi (thể lệ câu 7.11).
    */
   rangePoints: z.number().nullable().default(null),
+  /** Tài khoản CASA tính vào lương tháng đang xem, đếm theo người lập hồ sơ khách. Chỉ route chi tiết phòng trả. */
+  casaAccounts: z.number().default(0),
   /** Bị loại khỏi điểm phòng của tháng đang xem; điểm vẫn hiện nhưng không vào tổng phòng. */
   excludedFromDepartment: z.boolean().default(false),
   /** Tháng của các số trên dòng, dạng YYYY-MM. */
@@ -149,6 +151,8 @@ export const StaffList = z.object({
    * một trang, cộng theo trang thì mỗi lần bấm sang trang lại ra một tổng khác.
    */
   departmentPoints: z.number().nullable().default(null),
+  /** CASA ghi nhận cho phòng ở tháng `summaryMonth` và chỉ tiêu CASA của phòng; `null` khi không lọc theo một phòng. */
+  casa: z.object({ count: z.number(), target: z.number().nullable() }).nullable().default(null),
   /** Tháng `summaryMonth` đã chốt lương: trang chi tiết phòng ẩn nút Loại và Khôi phục. */
   monthClosed: z.boolean().default(false),
   page: pageOf(StaffRow),
