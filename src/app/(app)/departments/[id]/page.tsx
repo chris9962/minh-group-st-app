@@ -5,7 +5,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { UserCog, Users } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
-import { SkeletonCard, SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
+import { Skeleton, SkeletonCard, SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Count } from "@/components/ui/Count";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -164,9 +164,8 @@ function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): Ra
 
 const monthNumber = (yearMonth: string) => Number(yearMonth.slice(5));
 
-/** File CASA tháng M tính vào lương tháng M+1, nên nhãn nêu cả hai tháng. */
-const casaLabel = (yearMonth: string) =>
-  `CASA tháng ${monthNumber(yearMonth)}, file tháng ${monthNumber(shiftMonth(yearMonth, -1))}`;
+/** File CASA tháng M tính vào lương tháng M+1; nhãn chỉ ghi tháng của file (chủ dự án chốt 2026-11-17). */
+const casaLabel = (salaryMonth: string) => `CASA tháng ${monthNumber(shiftMonth(salaryMonth, -1))}`;
 
 const casaColumn = (yearMonth: string): RankColumn<StaffRow> => ({
   key: "casaAccounts",
@@ -422,14 +421,17 @@ export default function DepartmentDetailPage({
                   <StatStack
                     items={[
                       {
-                        value:
-                          staffData.casa.target === null
-                            ? formatCount(staffData.casa.count)
-                            : `${formatCount(staffData.casa.count)} / ${formatCount(staffData.casa.target)}`,
+                        value: staffPlaceholder ? (
+                          <Skeleton width="96px" height="28px" />
+                        ) : staffData.casa.target === null ? (
+                          formatCount(staffData.casa.count)
+                        ) : (
+                          `${formatCount(staffData.casa.count)} / ${formatCount(staffData.casa.target)}`
+                        ),
                         label:
                           staffData.casa.target === null
                             ? casaLabel(casaMonth)
-                            : `${casaLabel(casaMonth)} / chỉ tiêu tháng ${monthNumber(shiftMonth(casaMonth, -1))}`,
+                            : `${casaLabel(casaMonth)} / chỉ tiêu`,
                       },
                     ]}
                   />
