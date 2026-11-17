@@ -17,6 +17,8 @@ type Props = {
    * "chỉ tiêu" với "còn thiếu" vì số ngày đã nằm ở tiêu đề thẻ.
    */
   facts: React.ReactNode;
+  /** Nút đặt dưới dòng chú giải của một nguồn điểm, ví dụ "Chi tiết" ở dòng Điểm trừ. */
+  sourceAction?: (source: Source) => React.ReactNode;
 };
 
 /**
@@ -26,7 +28,7 @@ type Props = {
  * nhân viên. Hai chỗ đó vốn chép nhau cả JSX lẫn khoảng 70 dòng CSS, và đã lệch
  * hai giá trị — `gap` của khối vòng, `margin` của chú giải (AGENTS.md §2).
  */
-export function KpiScoreBlock({ sources, target, ariaLabel, facts }: Props) {
+export function KpiScoreBlock({ sources, target, ariaLabel, facts, sourceAction }: Props) {
   return (
     <>
       <div className={styles.score}>
@@ -53,6 +55,7 @@ export function KpiScoreBlock({ sources, target, ariaLabel, facts }: Props) {
               />
               {s.label}
               <span className={styles.legendDetail}>{s.detail}</span>
+              {sourceAction?.(s)}
             </dt>
             <dd className="tabular-nums">{formatPoints(s.points)}</dd>
           </div>

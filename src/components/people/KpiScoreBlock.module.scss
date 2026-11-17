@@ -59,6 +59,11 @@
   color: var(--om-text-3);
 }
 
+.legend dt > button {
+  grid-column: 2;
+  justify-self: start;
+}
+
 /* 600/15px, KHÔNG phải 800/16px của bản chép ở `PersonKpiPanel`: AGENTS.md §3
    đặt trần weight là 600, cần nhấn thì đổi cỡ chữ chứ không cộng weight. */
 .legend dd {

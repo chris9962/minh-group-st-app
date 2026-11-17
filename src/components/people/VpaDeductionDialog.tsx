@@ -33,13 +33,17 @@ const COLUMNS: RankColumn<VpaDeductedAccount>[] = [
   { key: "points", label: "Điểm trừ", render: (r) => <span className="tabular-nums">{deductedText(r.points)}</span> },
 ];
 
-type Props = { personId: string; adjustmentId: string; onClose: () => void };
+type Props = { personId: string; adjustmentIds: string[]; onClose: () => void };
 
-/** P-52 · Từng khách trong một dòng điểm trừ của file chốt chỉ tiêu VPa. */
-export function VpaDeductionDialog({ personId, adjustmentId, onClose }: Props) {
+/**
+ * P-52 và màn Tổng quan · Từng khách trong các dòng điểm trừ của file chốt chỉ
+ * tiêu VPa. Màn Tổng quan gộp mọi dòng của tháng vì mỗi lần nhập file là một dòng.
+ */
+export function VpaDeductionDialog({ personId, adjustmentIds, onClose }: Props) {
   const { data: rows = [], isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["vpa-deducted-accounts", personId, adjustmentId],
-    queryFn: () => fetchVpaDeductedAccounts(personId, adjustmentId),
+    queryKey: ["vpa-deducted-accounts", personId, ...adjustmentIds],
+    queryFn: async () =>
+      (await Promise.all(adjustmentIds.map((id) => fetchVpaDeductedAccounts(personId, id)))).flat(),
   });
 
   const total = roundPoints(rows.reduce((sum, r) => sum + r.points, 0));

@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { CalendarDays, ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
+import { Button } from "@/components/ui/Button";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { ScoringTable } from "@/components/exports/ScoringTable";
 import { HandledOrdersSection } from "@/components/people/HandledOrdersTable";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { PersonServicePoints } from "@/components/people/PersonServicesTable";
+import { VpaDeductionDialog } from "@/components/people/VpaDeductionDialog";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { StatCard } from "@/components/ui/StatCard";
@@ -45,6 +47,8 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
   const [pointsTab, setPointsTab] = useState("services");
   // Chỉ nhóm điểm ATM có điểm dịch vụ; người khác chỉ có bảng Điểm cài app.
   const withServices = person.atmScoring;
+  const [viewingDeduction, setViewingDeduction] = useState(false);
+  const vpaAdjustmentIds = person.adjustments.filter((a) => a.vpaAccountCount > 0).map((a) => a.id);
 
   return (
     <div className={styles.wrap}>
@@ -64,6 +68,13 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
             sources={person.pointSources}
             target={person.points.target}
             ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
+            sourceAction={(s) =>
+              (s.label === "Điểm trừ" || s.label === "Điểm cộng") && vpaAdjustmentIds.length > 0 ? (
+                <Button variant="ghost" aria-label="Chi tiết điểm trừ" onClick={() => setViewingDeduction(true)}>
+                  Chi tiết
+                </Button>
+              ) : null
+            }
             facts={
               <>
                 <div>
@@ -166,6 +177,14 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
         <PersonServicePoints staffId={person.id} />
       ) : (
         <ScoringTable lockedStaffId={person.id} pageSize={50} />
+      )}
+
+      {viewingDeduction && (
+        <VpaDeductionDialog
+          personId={person.id}
+          adjustmentIds={vpaAdjustmentIds}
+          onClose={() => setViewingDeduction(false)}
+        />
       )}
     </div>
   );

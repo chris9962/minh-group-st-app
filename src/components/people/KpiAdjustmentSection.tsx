@@ -136,7 +136,7 @@ export function KpiAdjustmentSection({ person }: Props) {
       )}
 
       {viewing && (
-        <VpaDeductionDialog personId={person.id} adjustmentId={viewing.id} onClose={() => setViewing(null)} />
+        <VpaDeductionDialog personId={person.id} adjustmentIds={[viewing.id]} onClose={() => setViewing(null)} />
       )}
 
       <ConfirmDialog
