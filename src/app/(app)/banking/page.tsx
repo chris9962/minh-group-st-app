@@ -40,7 +40,12 @@ import {
   BankAccountStatus,
   deleteBankAccount,
 } from "@/lib/api/bankAccounts";
-import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
+import {
+  fetchBankAccounts,
+  GIFT_PHOTO_FILTER_LABEL,
+  GiftPhotoFilter,
+  type BankAccountRow,
+} from "@/lib/api/banking";
 import { fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -113,6 +118,10 @@ export default function BankingPage() {
   );
   const [photoCheck, setPhotoCheck] = useState<PhotoCheckFilter | "">(() => {
     const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [giftPhoto, setGiftPhoto] = useState<GiftPhotoFilter | "">(() => {
+    const parsed = GiftPhotoFilter.safeParse(searchParams.get("giftPhoto"));
     return parsed.success ? parsed.data : "";
   });
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
@@ -239,11 +248,12 @@ export default function BankingPage() {
     if (status) params.set("status", status);
     if (accountTypes.length > 0) params.set("accountType", accountTypes.join(","));
     if (photoCheck) params.set("photoCheck", photoCheck);
+    if (giftPhoto) params.set("giftPhoto", giftPhoto);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/banking?${query}` : "/banking";
-  }, [accountTypes, bankCodes, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
+  }, [accountTypes, bankCodes, channelId, departmentId, dir, from, giftPhoto, page, photoCheck, searchQuery, staffId, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -263,6 +273,7 @@ export default function BankingPage() {
     status,
     accountType: accountTypes.join(","),
     photoCheck,
+    giftPhoto,
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
@@ -279,7 +290,8 @@ export default function BankingPage() {
     (staffId ? 1 : 0) +
     (status ? 1 : 0) +
     (accountTypes.length > 0 ? 1 : 0) +
-    (photoCheck ? 1 : 0);
+    (photoCheck ? 1 : 0) +
+    (giftPhoto ? 1 : 0);
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
@@ -450,6 +462,7 @@ export default function BankingPage() {
               setStatus("");
               setAccountTypes([]);
               setPhotoCheck("");
+              setGiftPhoto("");
             })
           }
         >
@@ -497,6 +510,17 @@ export default function BankingPage() {
               options={[
                 { value: "", label: "Tất cả" },
                 ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="giftPhoto" label="Ảnh nhận quà" count={giftPhoto ? 1 : 0}>
+            <FilterChoices
+              label="Ảnh nhận quà"
+              value={giftPhoto}
+              onChange={(v) => refine(() => setGiftPhoto(v as GiftPhotoFilter | ""))}
+              options={[
+                { value: "", label: "Tất cả" },
+                ...GiftPhotoFilter.options.map((f) => ({ value: f, label: GIFT_PHOTO_FILTER_LABEL[f] })),
               ]}
             />
           </FilterField>
@@ -612,6 +636,14 @@ export default function BankingPage() {
                   {
                     label: `Xác thực: ${PHOTO_CHECK_FILTER_LABEL[photoCheck]}`,
                     onRemove: () => refine(() => setPhotoCheck("")),
+                  },
+                ]
+              : []),
+            ...(giftPhoto
+              ? [
+                  {
+                    label: `Ảnh nhận quà: ${GIFT_PHOTO_FILTER_LABEL[giftPhoto]}`,
+                    onRemove: () => refine(() => setGiftPhoto("")),
                   },
                 ]
               : []),

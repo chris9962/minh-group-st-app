@@ -41,6 +41,8 @@ import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
   fetchBankAccountsOfBank,
   fetchBankAccountsOfBankForExport,
+  GIFT_PHOTO_FILTER_LABEL,
+  GiftPhotoFilter,
   type BankAccountExportRow,
   type BankAccountRow,
 } from "@/lib/api/banking";
@@ -188,6 +190,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
     return parsed.success ? parsed.data : "";
   });
+  const [giftPhoto, setGiftPhoto] = useState<GiftPhotoFilter | "">(() => {
+    const parsed = GiftPhotoFilter.safeParse(searchParams.get("giftPhoto"));
+    return parsed.success ? parsed.data : "";
+  });
   /**
    * Hai tab hai trang RIÊNG, `page` trên URL thuộc về tab đang mở. Nạp lẫn
    * trang của tab kia là mở link ra một trang không khớp số trên URL.
@@ -262,6 +268,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (channelId) params.set("channelId", channelId);
     if (accountType) params.set("accountType", accountType);
     if (photoCheck) params.set("photoCheck", photoCheck);
+    if (giftPhoto) params.set("giftPhoto", giftPhoto);
     // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
     const shownPage = tab === "photos" ? photoPage : tab === "accounts" ? page : 0;
     if (shownPage > 0) params.set("page", String(shownPage + 1));
@@ -274,6 +281,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     departmentId,
     dir,
     from,
+    giftPhoto,
     id,
     page,
     photoCheck,
@@ -302,6 +310,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       channelId,
       accountType,
       photoCheck,
+      giftPhoto,
       page,
       dir,
     ],
@@ -316,6 +325,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         channelId,
         accountType,
         photoCheck,
+        giftPhoto,
         page,
         sort: "date",
         dir,
@@ -350,6 +360,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         channelId,
         accountType,
         photoCheck,
+        giftPhoto,
       });
       // Chỉ xảy ra khi số dòng vượt sức chứa của một sheet Excel. Không có
       // trần do hệ thống đặt ra ở đây.
@@ -428,7 +439,8 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
     (accountType ? 1 : 0) +
-    (photoCheck ? 1 : 0);
+    (photoCheck ? 1 : 0) +
+    (giftPhoto ? 1 : 0);
 
   /**
    * Sang ngân hàng khác giữ tab và bộ lọc, trừ mã giới thiệu: mã thuộc riêng
@@ -438,6 +450,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const switchBank = (nextId: string) => {
     const params = new URLSearchParams(listUrl.split("?")[1] ?? "");
     params.delete("referralCodeId");
+    params.delete("giftPhoto");
     params.delete("page");
     const query = params.toString();
     router.push(query ? `/settings/banks/${nextId}?${query}` : `/settings/banks/${nextId}`);
@@ -531,6 +544,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               setChannelId("");
               setAccountTypes([]);
               setPhotoCheck("");
+              setGiftPhoto("");
             })
           }
         >
@@ -561,6 +575,19 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               ]}
             />
           </FilterField>
+          {nonBank && (
+            <FilterField id="giftPhoto" label="Ảnh nhận quà" count={giftPhoto ? 1 : 0}>
+              <FilterChoices
+                label="Ảnh nhận quà"
+                value={giftPhoto}
+                onChange={(v) => refine(() => setGiftPhoto(v as GiftPhotoFilter | ""))}
+                options={[
+                  { value: "", label: "Tất cả" },
+                  ...GiftPhotoFilter.options.map((f) => ({ value: f, label: GIFT_PHOTO_FILTER_LABEL[f] })),
+                ]}
+              />
+            </FilterField>
+          )}
           <FilterField id="code" label="Mã giới thiệu" count={referralCodeIds.length}>
             <FilterChoices
               multiple
@@ -629,6 +656,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   {
                     label: `Xác thực: ${PHOTO_CHECK_FILTER_LABEL[photoCheck]}`,
                     onRemove: () => refine(() => setPhotoCheck("")),
+                  },
+                ]
+              : []),
+            ...(giftPhoto
+              ? [
+                  {
+                    label: `Ảnh nhận quà: ${GIFT_PHOTO_FILTER_LABEL[giftPhoto]}`,
+                    onRemove: () => refine(() => setGiftPhoto("")),
                   },
                 ]
               : []),

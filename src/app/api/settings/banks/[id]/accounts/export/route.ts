@@ -33,6 +33,7 @@ export async function GET(request: Request, { params }: Params) {
       channelId: uuidParam(query.get("channelId")),
       accountType: query.get("accountType") ?? "",
       photoCheck: query.get("photoCheck") ?? "",
+      giftPhoto: query.get("giftPhoto") ?? "",
     },
     // Cột CCCD chỉ đi ra khi người xuất có quyền đọc số đầy đủ, như file "Tính điểm tổng".
     can(actor, "customer", "access-id-number")),

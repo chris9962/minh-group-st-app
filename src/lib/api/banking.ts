@@ -157,6 +157,14 @@ export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
  * người tạo thì phải nối bảng TRƯỚC khi cắt trang, tức kéo cả kho để lấy 15
  * dòng (AGENTS.md §5.2) — mà `bank_accounts` là bảng lớn nhất hệ thống.
  */
+export const GiftPhotoFilter = z.enum(['yes', 'no']);
+export type GiftPhotoFilter = z.infer<typeof GiftPhotoFilter>;
+
+export const GIFT_PHOTO_FILTER_LABEL: Record<GiftPhotoFilter, string> = {
+  yes: 'Có',
+  no: 'Chưa có',
+};
+
 export const BANK_ACCOUNT_SORT = ['date'] as const;
 export type BankAccountSort = (typeof BANK_ACCOUNT_SORT)[number];
 
@@ -189,6 +197,8 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
   accountType: string;
   /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
   photoCheck: PhotoCheckFilter | '';
+  /** Ảnh khách nhận quà của dòng ShopeePay. Rỗng = không lọc. */
+  giftPhoto?: GiftPhotoFilter | '';
 };
 
 const BankAccountPage = pageOf(BankAccountRow);
@@ -210,6 +220,7 @@ const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
   status: query.status,
   accountType: query.accountType,
   photoCheck: query.photoCheck,
+  giftPhoto: query.giftPhoto ?? '',
 });
 
 /** MỘT trang tài khoản, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
@@ -258,6 +269,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   accountType: string;
   /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
   photoCheck: PhotoCheckFilter | '';
+  /** Ảnh khách nhận quà của dòng ShopeePay. Rỗng = không lọc. */
+  giftPhoto: GiftPhotoFilter | '';
 };
 
 /**
@@ -280,6 +293,7 @@ export async function fetchBankAccountsOfBankForExport(
   if (query.channelId) params.set('channelId', query.channelId);
   if (query.accountType) params.set('accountType', query.accountType);
   if (query.photoCheck) params.set('photoCheck', query.photoCheck);
+  if (query.giftPhoto) params.set('giftPhoto', query.giftPhoto);
 
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
@@ -311,6 +325,7 @@ export async function fetchBankAccountsOfBank(
     channelId: query.channelId,
     accountType: query.accountType,
     photoCheck: query.photoCheck,
+    giftPhoto: query.giftPhoto,
   });
   const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');

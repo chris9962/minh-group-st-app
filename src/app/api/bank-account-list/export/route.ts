@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     status: params.get("status") ?? "",
     accountType: params.get("accountType") ?? "",
     photoCheck: params.get("photoCheck") ?? "",
+    giftPhoto: params.get("giftPhoto") ?? "",
   });
 
   // Lượt xuất nào cũng để lại vết (spec §10.4).

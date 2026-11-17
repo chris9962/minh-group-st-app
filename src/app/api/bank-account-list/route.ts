@@ -36,6 +36,7 @@ export async function GET(request: Request) {
         status: params.get("status") ?? "",
         accountType: params.get("accountType") ?? "",
         photoCheck: params.get("photoCheck") ?? "",
+        giftPhoto: params.get("giftPhoto") ?? "",
       },
       pageArgsFrom(url, BANK_ACCOUNT_SORT, "date"),
     ),

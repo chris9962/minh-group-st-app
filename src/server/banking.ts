@@ -81,6 +81,7 @@ import { ageFitWhere, listOpenReferralCodes, openCodeWhere } from "./catalog";
 import { ageFits, ageOf, customerAge, meetsAgeRule, type AgeRule } from "./age";
 import { pendingSkipReasons } from "./bankSkipReason";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
+import { giftPhotoFilter } from "./giftPhoto";
 import { imageUrl } from "./storage";
 
 /**
@@ -375,6 +376,8 @@ export type BankAccountFilters = {
   accountType: string;
   /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
   photoCheck: string;
+  /** `yes` · `no` theo ảnh khách nhận quà của dòng ShopeePay. Rỗng hoặc giá trị lạ = không lọc. */
+  giftPhoto?: string;
   /**
    * Địa chỉ khách chọn từ danh mục xã/ấp, cùng chuỗi với ô lọc ở P-40. Chỉ báo
    * cáo Tính điểm tổng dùng (chốt 2026-09-17). Bỏ trống = không lọc.
@@ -623,6 +626,7 @@ async function accountFilters(
     statusFilter(query.status),
     accountTypeFilter(query.accountType),
     photoCheckFilter(query.photoCheck),
+    giftPhotoFilter(query.giftPhoto ?? ""),
     addressFilter(query.address),
   ].filter(Boolean) as SQL[];
 
@@ -920,6 +924,8 @@ export type BankOfBankFilters = {
   accountType: string;
   /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
   photoCheck: string;
+  /** `yes` · `no` theo ảnh khách nhận quà của dòng ShopeePay. Rỗng hoặc giá trị lạ = không lọc. */
+  giftPhoto?: string;
 };
 
 /**
@@ -972,6 +978,7 @@ const bankAccountsOfBankWhere =(bankId: string, filters: BankOfBankFilters): SQL
       filters.channelId ? eq(bankAccounts.channelId, filters.channelId) : undefined,
       accountTypeFilter(filters.accountType),
       photoCheckFilter(filters.photoCheck),
+      giftPhotoFilter(filters.giftPhoto ?? ""),
     ].filter(Boolean) as SQL[]),
   )!;
 
