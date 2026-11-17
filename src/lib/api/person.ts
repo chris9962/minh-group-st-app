@@ -142,6 +142,11 @@ export const KpiAdjustmentForm = z.object({
 });
 export type KpiAdjustmentForm = z.infer<typeof KpiAdjustmentForm>;
 
+/** Thân của lệnh cộng điểm: form kèm tháng `YYYY-MM` đang xem ở P-52. */
+export const KpiAdjustmentCreate = KpiAdjustmentForm.extend({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+});
+
 export const SalaryBreakdown = z.object({
   /** Tháng `YYYY-MM` mà phép tính đang đọc. */
   month: z.string(),
@@ -289,8 +294,8 @@ async function send(url: string, method: string, body?: unknown) {
   return res.json();
 }
 
-export const createKpiAdjustment = (personId: string, form: KpiAdjustmentForm) =>
-  send(`/api/people/${encodeURIComponent(personId)}/adjustments`, 'POST', form).then(
+export const createKpiAdjustment = (personId: string, month: string, form: KpiAdjustmentForm) =>
+  send(`/api/people/${encodeURIComponent(personId)}/adjustments`, 'POST', { ...form, month }).then(
     KpiAdjustment.parse,
   );
 

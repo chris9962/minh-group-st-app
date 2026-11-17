@@ -22,12 +22,14 @@ type Props = {
   open: boolean;
   onClose: () => void;
   personId: string;
+  /** Tháng `YYYY-MM` nhận lần cộng mới. */
+  month: string;
   /** Có thì là sửa, không có thì là cộng lần mới. */
   adjustment?: KpiAdjustment | null;
 };
 
-/** P-52 · Cộng / sửa một lần điểm cộng KPI — luôn vào tháng hiện tại. */
-export function KpiAdjustmentFormDialog({ open, onClose, personId, adjustment }: Props) {
+/** P-52 · Cộng / sửa một lần điểm cộng KPI của tháng đang xem. */
+export function KpiAdjustmentFormDialog({ open, onClose, personId, month, adjustment }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(adjustment);
 
@@ -48,7 +50,7 @@ export function KpiAdjustmentFormDialog({ open, onClose, personId, adjustment }:
     mutationFn: (form: KpiAdjustmentForm) =>
       adjustment
         ? updateKpiAdjustment(personId, adjustment.id, form)
-        : createKpiAdjustment(personId, form),
+        : createKpiAdjustment(personId, month, form),
     onSuccess: () => {
       invalidateKpi(queryClient);
       onClose();
