@@ -17,6 +17,8 @@ type Props = {
   options: TabOption[];
   value: string;
   onChange: (value: string) => void;
+  /** Thẻ thấp 32px cho hàng lọc trong hộp thoại, nơi chỗ theo chiều dọc chật. */
+  compact?: boolean;
 };
 
 /**
@@ -26,11 +28,11 @@ type Props = {
  * mũi tên và trạng thái chọn, không phải tự viết mã bàn phím nào. Số đếm nằm
  * ngay trên nhãn để biết thẻ nào rỗng mà khỏi bấm thử.
  */
-export function SegmentedTabs({ label, options, value, onChange }: Props) {
+export function SegmentedTabs({ label, options, value, onChange, compact = false }: Props) {
   const id = useId();
 
   return (
-    <div className={styles.tabs} role="group" aria-label={label}>
+    <div className={clsx(styles.tabs, compact && styles.compact)} role="group" aria-label={label}>
       {options.map((o) => (
         <label
           key={o.value}

@@ -1247,6 +1247,27 @@
       "when": 1789891500500,
       "tag": "0178_customer_change_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1789891500600,
+      "tag": "0179_gift_shops",
+      "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1789891500700,
+      "tag": "0180_gift_shop_product_image",
+      "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1789891500800,
+      "tag": "0181_gift_shop_product_category",
+      "breakpoints": true
     }
   ]
 }

@@ -361,6 +361,7 @@ export function navFor(user: User | null): NavEntry[] {
   }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({ href: '/settings/channels', label: 'Danh mục kênh', screen: 'P-70' });
+    settingsChildren.push({ href: '/settings/gift-shops', label: 'Shop mua quà ShopeePay', screen: 'P-88' });
   }
   /**
    * P-71 tách khỏi trang Danh mục kênh (chốt 2026-09-07). Có quyền riêng

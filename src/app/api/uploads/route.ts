@@ -32,6 +32,7 @@ const FOLDERS = [
   "attendance",
   "bank-skip-reasons",
   "customer-inspections",
+  "gift-shops",
 ] as const;
 type Folder = (typeof FOLDERS)[number];
 

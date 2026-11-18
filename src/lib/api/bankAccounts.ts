@@ -379,6 +379,11 @@ export const BankAccountFinishForm = z.object({
    */
   trackingCode: z.string().trim().max(100, 'Mã đơn hàng dài quá').optional(),
   /**
+   * Id shop mua quà của dòng ShopeePay; `''` = mua ở shop ngoài danh sách, không
+   * bắt buộc (chủ dự án chốt 2026-11-18). `optional` cùng lý do với `trackingCode`.
+   */
+  giftShopId: z.string().optional(),
+  /**
    * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
    * thiệu chọn lúc giữ chỗ, và mã tách theo loại. Muốn loại khác thì mở dòng
    * mới với mã của loại đó.

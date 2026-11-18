@@ -35,6 +35,11 @@ type Props = {
   /** Hộp hẹp 380px cho nội dung dọc, ví dụ một ảnh chụp bằng điện thoại. */
   narrow?: boolean;
   /**
+   * Hộp phủ gần trọn màn hình, cao cố định: nội dung đổi khi lọc hay chuyển bước
+   * mà hộp không co giãn theo. Dùng cho lưới chọn nhiều món, ví dụ modal chọn quà.
+   */
+  fullScreen?: boolean;
+  /**
    * `sheet` = trượt lên từ đáy màn hình (chọn việc trên điện thoại).
    * Mặc định hộp thoại giữa màn.
    */
@@ -64,6 +69,7 @@ export function Dialog({
   wide = false,
   full = false,
   narrow = false,
+  fullScreen = false,
   placement = "center",
   dismissible = true,
 }: Props) {
@@ -217,6 +223,7 @@ export function Dialog({
               wide && styles.wide,
               full && styles.full,
               narrow && styles.narrow,
+              fullScreen && styles.fullScreen,
               placement === "sheet" && styles.sheet,
             )}
             tabIndex={-1}

@@ -82,6 +82,7 @@ import { ageFits, ageOf, customerAge, meetsAgeRule, type AgeRule } from "./age";
 import { pendingSkipReasons } from "./bankSkipReason";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { giftPhotoFilter } from "./giftPhoto";
+import { giftShopOptions, giftShopRejection } from "./giftShops";
 import { imageUrl } from "./storage";
 
 /**
@@ -659,6 +660,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       note: bankAccounts.note,
       linkedBankName: bankAccounts.linkedBankName,
       trackingCode: bankAccounts.trackingCode,
+      giftShopId: bankAccounts.giftShopId,
       errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
@@ -721,6 +723,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       note: page.note,
       linkedBankName: sql<string>`coalesce(${page.linkedBankName}, '')`,
       trackingCode: sql<string>`coalesce(${page.trackingCode}, '')`,
+      giftShopId: page.giftShopId,
       errorNote: page.errorNote,
       createdById: page.createdBy,
       createdByName: users.fullName,
@@ -1416,6 +1419,8 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
     bankQrLink: r.bankQrLink,
+    giftShopId: r.giftShopId ?? "",
+    giftShops: isNonBankCode(r.bankCode) ? await giftShopOptions(r.giftShopId) : [],
     bankGuide: separateGuide ? (variant?.guide ?? "") : r.bankGuide,
     bankGuidePhotoUrls: await bankGuidePhotoUrls(
       r.bankId,
@@ -1925,7 +1930,10 @@ export async function customerBankSlots(
  * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
  * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
-type FinishFieldsInput = Pick<BankAccountFinishForm, "accountNumber" | "linkedBankName" | "trackingCode">;
+type FinishFieldsInput = Pick<
+  BankAccountFinishForm,
+  "accountNumber" | "linkedBankName" | "trackingCode" | "giftShopId"
+>;
 
 // Schema chung nhận số tài khoản rỗng vì dòng ShopeePay, nên ngân hàng phải kiểm lại ở đây.
 const requiredFieldMissing = (bankCode: string, form: FinishFieldsInput): string | null => {
@@ -1943,6 +1951,7 @@ const nonBankFieldsOf = (bankCode: string, form: FinishFieldsInput) =>
         accountNumber: "",
         linkedBankName: form.linkedBankName,
         trackingCode: form.trackingCode || null,
+        giftShopId: form.giftShopId || null,
       }
     : {};
 
@@ -2017,6 +2026,11 @@ export async function finishBankAccount(
 
   const fieldMissing = requiredFieldMissing(current.bankCode, form);
   if (fieldMissing) return { ok: false, message: fieldMissing };
+
+  if (isNonBankCode(current.bankCode)) {
+    const shopRejected = await giftShopRejection(form.giftShopId ?? "", current.giftShopId);
+    if (shopRejected) return { ok: false, message: shopRejected };
+  }
 
   /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
@@ -2151,6 +2165,11 @@ export async function updateFinishedAccount(
 
   const fieldMissing = requiredFieldMissing(current.bankCode, form);
   if (fieldMissing) return { ok: false, message: fieldMissing };
+
+  if (isNonBankCode(current.bankCode)) {
+    const shopRejected = await giftShopRejection(form.giftShopId ?? "", current.giftShopId);
+    if (shopRejected) return { ok: false, message: shopRejected };
+  }
 
   const previousDate = current.date;
 

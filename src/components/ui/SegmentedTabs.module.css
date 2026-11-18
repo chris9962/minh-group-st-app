@@ -43,6 +43,18 @@
   outline-offset: 2px;
 }
 
+/* 32px vẫn trên mức 24px của WCAG 2.5.8. Chủ dự án chốt 2026-11-18 cho hàng lọc của modal chọn quà. */
+.compact {
+  gap: 6px;
+}
+
+.compact .tab {
+  min-height: 32px;
+  padding: 0 10px;
+  gap: 5px;
+  font-size: 12.5px;
+}
+
 .count {
   padding: 1px 7px;
   border-radius: 999px;
@@ -57,4 +69,9 @@
 .active .count {
   background: var(--om-accent-chip);
   color: var(--om-text-on-accent);
+}
+
+.compact .count {
+  padding: 0 6px;
+  font-size: 11px;
 }

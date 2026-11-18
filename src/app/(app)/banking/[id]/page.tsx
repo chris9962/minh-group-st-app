@@ -23,6 +23,7 @@ import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishF
 import { DraftPurgeCountdown } from "@/components/banking/DraftPurgeCountdown";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import { BankShopQrButton } from "@/components/banking/BankShopQrButton";
+import { GiftPickerButton } from "@/components/banking/GiftPickerButton";
 import {
   BankAccountPhotos,
   photosChanged,
@@ -208,6 +209,8 @@ function FinishAccountCard({
       appInstalled: data.appDefault,
       linkedBankName: data.linkedBankName,
       trackingCode: data.trackingCode,
+      // Shop ít đơn nhất trong ngày, máy chủ đã xếp đứng đầu.
+      giftShopId: data.giftShopId || (data.giftShops[0]?.id ?? ""),
       note: data.note,
     },
   });
@@ -339,6 +342,7 @@ function FinishAccountCard({
         customerPhones={data.customerPhones}
         referralQrUrl={data.referralQrUrl}
         bankQrLink={data.bankQrLink}
+        giftShops={data.giftShops}
         bankGuide={data.bankGuide}
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
         photos={photos}
@@ -403,6 +407,7 @@ function DoneAccountCard({
    */
   const canRemove = canDeleteFinished(user, "banking", data) && !data.monthClosed;
   const canMove = !!user && isFullAccess(user.permissions) && !data.monthClosed && !!data.customerId;
+  const recordedGiftShop = data.giftShops.find((s) => s.id === data.giftShopId);
   const [moving, setMoving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
@@ -685,6 +690,10 @@ function DoneAccountCard({
               <dt>Mã đơn hàng</dt>
               <dd>{data.trackingCode || "—"}</dd>
             </div>
+            <div>
+              <dt>Shop mua quà</dt>
+              <dd>{recordedGiftShop?.name || "—"}</dd>
+            </div>
           </>
         )}
         <div>
@@ -713,10 +722,16 @@ function DoneAccountCard({
 
       <ReferralCodeCard account={data} />
 
-      {data.bankQrLink && (
+      {data.giftShops.length > 0 ? (
         <div>
-          <BankShopQrButton link={data.bankQrLink} />
+          <GiftPickerButton shop={recordedGiftShop} />
         </div>
+      ) : (
+        data.bankQrLink && (
+          <div>
+            <BankShopQrButton link={data.bankQrLink} />
+          </div>
+        )
       )}
 
       {/* Hai khối ảnh CHỈ XEM (chốt 2026-08-16): thêm/thay/xoá ảnh đi qua hộp

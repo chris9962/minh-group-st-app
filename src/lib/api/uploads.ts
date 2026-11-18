@@ -63,7 +63,8 @@ export type UploadFolder =
   | 'vneid'
   | 'attendance'
   | 'bank-skip-reasons'
-  | 'customer-inspections';
+  | 'customer-inspections'
+  | 'gift-shops';
 
 export async function uploadImage(
   file: File,

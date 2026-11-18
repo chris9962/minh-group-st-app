@@ -12,12 +12,15 @@ import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
 import { BankShopQrButton } from "./BankShopQrButton";
+import { GiftPickerButton } from "./GiftPickerButton";
 import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { BankAccountFinishForm, isNonBankCode } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
+import { giftShopOptionLabel, type GiftShopOption } from "@/lib/api/giftShops";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
 import styles from "./BankAccountFinishFields.module.scss";
@@ -39,6 +42,8 @@ type Props = {
   referralQrUrl: string;
   /** Link của ngân hàng, hiện thành mã QR; `''` = không dựng nút xem. */
   bankQrLink: string;
+  /** Shop mua quà của dòng ShopeePay, ít đơn trong ngày đứng đầu. Rỗng = không hiện ô chọn shop. */
+  giftShops: GiftShopOption[];
   /** Hướng dẫn mở tài khoản của ngân hàng; `''` = không dựng nút xem. */
   bankGuide: string;
   /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */
@@ -75,6 +80,7 @@ export function BankAccountFinishFields({
   customerPhones,
   referralQrUrl,
   bankQrLink,
+  giftShops,
   bankGuide,
   bankGuidePhotoUrls,
   photos,
@@ -113,6 +119,8 @@ export function BankAccountFinishFields({
 
   const qrLink = decodedQr.url === referralQrUrl ? decodedQr.link : "";
 
+  const giftShopId = watch("giftShopId") ?? "";
+
   /**
    * Có ảnh mẫu mà chưa có chữ vẫn dựng nút — ảnh chụp từng bước tự nó đã là
    * hướng dẫn, và hộp thoại nói rõ phần chữ còn trống.
@@ -149,7 +157,7 @@ export function BankAccountFinishFields({
 
   return (
     <>
-      {(referralQrUrl || bankQrLink || hasGuide) && (
+      {(referralQrUrl || bankQrLink || giftShops.length > 0 || hasGuide) && (
         <div className={styles.openRow}>
           {referralQrUrl && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
@@ -158,7 +166,11 @@ export function BankAccountFinishFields({
             </Button>
           )}
 
-          {bankQrLink && <BankShopQrButton link={bankQrLink} className={styles.openAction} />}
+          {giftShops.length > 0 ? (
+            <GiftPickerButton className={styles.openAction} />
+          ) : (
+            bankQrLink && <BankShopQrButton link={bankQrLink} className={styles.openAction} />
+          )}
 
           {/*
             Mỗi ngân hàng một quy trình: ngân hàng này bắt nhập mã giới thiệu ở
@@ -264,6 +276,23 @@ export function BankAccountFinishFields({
 
         {isNonBankCode(bankCode) && (
           <>
+            {giftShops.length > 0 && (
+              <Combobox
+                block
+                label="Shop mua quà"
+                placeholder="Gõ tên shop để tìm"
+                value={giftShopId}
+                error={errors.giftShopId?.message}
+                hint="Chọn shop bán món quà khách mua. Mua ở shop khác thì chọn “Shop ngoài danh sách”."
+                onChange={(v) =>
+                  setValue("giftShopId", v, { shouldDirty: true, shouldValidate: Boolean(errors.giftShopId) })
+                }
+                options={[
+                  { value: "", label: "Shop ngoài danh sách" },
+                  ...giftShops.map((s) => ({ value: s.id, label: giftShopOptionLabel(s) })),
+                ]}
+              />
+            )}
             <TextField
               label="Ngân hàng liên kết"
               required

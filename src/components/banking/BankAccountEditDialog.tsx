@@ -84,6 +84,15 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     queryFn: () => fetchBankAccountDetail(accountId),
   });
 
+  /**
+   * Shop gợi ý chốt từ lần tải đầu. Chi tiết tải lại khi nhân viên quay về từ
+   * app Shopee, thứ tự shop có thể đổi, mà `values` đổi là biểu mẫu đặt lại và
+   * mất chữ đã gõ.
+   */
+  const [suggestedShopId, setSuggestedShopId] = useState<string | null>(null);
+  if (data && suggestedShopId === null)
+    setSuggestedShopId(data.status === "creating" ? (data.giftShops[0]?.id ?? "") : "");
+
   const finishForm = useForm<BankAccountFinishForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
@@ -119,6 +128,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         data?.status === "creating" ? (data.appDefault ?? false) : (data?.appInstalled ?? false),
       linkedBankName: data?.linkedBankName ?? "",
       trackingCode: data?.trackingCode ?? "",
+      giftShopId: data?.giftShopId || suggestedShopId || "",
       note: data?.note ?? "",
     },
   });
@@ -297,6 +307,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         customerPhones={data.customerPhones}
         referralQrUrl={data.referralQrUrl}
         bankQrLink={data.bankQrLink}
+        giftShops={data.giftShops}
         bankGuide={data.bankGuide}
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
             photos={photos}

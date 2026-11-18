@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AccountNumberMethod, ReferralCode } from './bankCatalog';
 import { AccountType, BankAccount, BankAccountNotFoundError, BankAccountStatus } from './bankAccounts';
+import { GiftShopOption } from './giftShops';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 import { PhotoCheck, type PhotoCheckFilter } from './photoCheck';
 
@@ -143,6 +144,10 @@ export const BankAccountDetail = BankAccountRow.extend({
   referralQrUrl: z.string(),
   /** Link của ngân hàng, hiện thành mã QR ở bước 2; `''` = ngân hàng không có link. */
   bankQrLink: z.string().default(''),
+  /** Shop mua quà đã khai của dòng ShopeePay; `''` = chưa khai. */
+  giftShopId: z.string().default(''),
+  /** Ô chọn shop ở bước 2, ít đơn trong ngày đứng đầu. Chỉ dòng ShopeePay có. */
+  giftShops: z.array(GiftShopOption).default([]),
   /** Hướng dẫn mở tài khoản của ngân hàng này; `''` = chưa có. */
   bankGuide: z.string(),
   /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */

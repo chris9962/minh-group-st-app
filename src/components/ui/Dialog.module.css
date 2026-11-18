@@ -46,6 +46,13 @@
   width: min(380px, calc(100vw - 32px));
 }
 
+/* Đặt cả `height`, không chỉ `max-height`: hộp phải giữ nguyên cỡ khi nội dung ngắn lại. */
+.fullScreen {
+  width: calc(100vw - 32px);
+  height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 32px);
+}
+
 /* Khung hộp thoại nhận tiêu điểm lúc mở (xem `Dialog.tsx`) nhưng không phải thứ
    bấm được, nên không vẽ viền tiêu điểm. Các nút bên trong vẫn giữ viền của
    chúng. */

@@ -929,6 +929,38 @@ export const giftItems = pgTable("gift_items", {
   createdAt: createdAt(),
 });
 
+/**
+ * Shop mua quà của dòng ShopeePay (migration 0179). Bước 2 xếp shop theo số đơn
+ * trong ngày để Shopee không thấy một shop nhận quá nhiều đơn từ ví mới.
+ */
+export const giftShops = pgTable("gift_shops", {
+  id: id(),
+  name: text("name").notNull().unique(),
+  /** Link hiện thành mã QR ở bước 2. `''` = bước 2 dùng link của ngân hàng ShopeePay. */
+  link: text("link").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+});
+
+export const giftShopProducts = pgTable(
+  "gift_shop_products",
+  {
+    id: id(),
+    shopId: uuid("shop_id").notNull().references(() => giftShops.id),
+    name: text("name").notNull(),
+    /** Chữ người nhập gõ, ví dụ `89k` hoặc `70k - 180k`. Không code nào đọc ra số. */
+    price: text("price").notNull().default(""),
+    link: text("link").notNull().default(""),
+    /** Khoá trong kho ảnh (migration 0180); null = chưa có ảnh. */
+    image: text("image"),
+    /** Khoá trong `GIFT_CATEGORY_LABEL` ở `lib/api/giftShops.ts` (migration 0181). */
+    category: text("category").notNull().default("other"),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("gift_shop_products_shop_name_unique").on(t.shopId, t.name)],
+);
+
 export const insurancePackages = pgTable(
   "insurance_packages",
   {
@@ -1371,6 +1403,8 @@ export const bankAccounts = pgTable(
     linkedAccountNumber: text("linked_account_number"),
     /** Mã đơn hàng của đơn quà ShopeePay (migration 0168). */
     trackingCode: text("tracking_code"),
+    /** Shop nhân viên khai đã mua quà, chỉ dòng ShopeePay có (migration 0179). */
+    giftShopId: uuid("gift_shop_id").references(() => giftShops.id),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
     appInstalled: boolean("app_installed").notNull().default(false),
@@ -1442,6 +1476,10 @@ export const bankAccounts = pgTable(
       sql`(${t.accountType} = 'HKD')`,
     ),
     index("bank_accounts_referral").on(t.referralCodeId, t.status),
+    /** Bước 2 đếm đơn trong ngày của từng shop mua quà. */
+    index("bank_accounts_gift_shop_finished")
+      .on(t.giftShopId, t.finishedAt)
+      .where(sql`${t.giftShopId} is not null`),
     index("bank_accounts_dept_date").on(t.createdByDepartmentId, t.openedDate),
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
     // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.

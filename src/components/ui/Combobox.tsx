@@ -19,6 +19,8 @@ type Props = {
   placeholder?: string;
   /** Thông báo lỗi. Có giá trị thì ô được đánh dấu `aria-invalid` và nối vào câu lỗi. */
   error?: string;
+  /** Dòng gợi ý dưới ô, ẩn khi có lỗi — giống `Select`. */
+  hint?: string;
   /** Nhãn xếp phía trên, ô rộng hết cỡ — dùng khi đứng cùng hàng với TextField trong form. */
   block?: boolean;
   required?: boolean;
@@ -49,12 +51,14 @@ export function Combobox({
   onChange,
   placeholder,
   error,
+  hint,
   block = false,
   required,
 }: Props) {
   const id = useId();
   const listId = `${id}-list`;
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   /**
@@ -128,6 +132,7 @@ export function Combobox({
             aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
             aria-invalid={Boolean(error)}
             aria-errormessage={error ? errorId : undefined}
+            aria-describedby={hint && !error ? hintId : undefined}
             autoComplete="off"
             className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
             value={displayValue}
@@ -173,6 +178,11 @@ export function Combobox({
             }}
           />
         </Popover.Anchor>
+        {hint && !error && (
+          <span id={hintId} className={styles.hint}>
+            {hint}
+          </span>
+        )}
         {error && (
           <span id={errorId} className={styles.error} role="alert">
             {error}
