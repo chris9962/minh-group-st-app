@@ -24,6 +24,51 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-18',
+    version: '2.30.0',
+    title: 'Cập nhật ngày 18/11/2026',
+    summary: 'Tài khoản VPa không đạt chỉ tiêu giữ điểm CNKD và HKD; thêm bộ lọc Ảnh nhận quà ShopeePay.',
+    sections: [
+      {
+        title: 'Điểm trừ VPa',
+        items: [
+          'Tài khoản VPa không đạt chỉ tiêu không bị trừ điểm CNKD và HKD.',
+          'Màn Tổng quan, dòng Điểm trừ có nút Chi tiết: xem tài khoản VPa không đạt chỉ tiêu.',
+        ],
+      },
+      {
+        title: 'Lương',
+        items: ['CASA trong file tháng nào thì so với chỉ tiêu CASA của tháng đó.'],
+        visibleTo: (user) => canOpenPath(user, '/payroll'),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Bộ lọc Ảnh nhận quà: Có, Chưa có. Chỉ áp cho tài khoản ShopeePay.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: ['Trang ShopeePay có bộ lọc Ảnh nhận quà. File Excel xuất theo bộ lọc này.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Phòng ban',
+        items: ['Trang chi tiết phòng có thẻ CASA và cột CASA của từng nhân viên.'],
+        visibleTo: (user) => canOpenPath(user, '/departments'),
+      },
+      {
+        title: 'Điểm cộng, điểm trừ KPI',
+        items: ['Ghi, sửa, xoá được ở mọi tháng chưa chốt lương.'],
+        visibleTo: (user) => can(user, 'system', 'adjust-kpi'),
+      },
+      {
+        title: 'Quyền Khách hàng',
+        items: ['Phần Quyền có quyền Đổi người tạo ở module Khách hàng.'],
+        visibleTo: (user) => can(user, 'system', 'grant-permission'),
+      },
+    ],
+  },
+  {
     id: '2026-11-17',
     version: '2.29.0',
     title: 'Cập nhật ngày 17/11/2026',
