@@ -24,6 +24,34 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-19',
+    version: '2.31.0',
+    title: 'Cập nhật ngày 19/11/2026',
+    summary: 'Tài khoản ShopeePay ghi shop mua quà và chọn quà từ danh sách shop.',
+    sections: [
+      {
+        title: 'Ngân hàng',
+        items: [
+          'Tài khoản ShopeePay có ô Shop mua quà, không bắt buộc.',
+          'Mua ở shop khác thì chọn Shop ngoài danh sách.',
+          'Nút Chọn quà tặng từ Shopee: lọc quà theo loại, tìm theo tên, hiện mã QR cho khách mua.',
+          'Danh sách quà ẩn shop có nhiều đơn nhất trong ngày.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Bộ lọc Tài khoản thêm lựa chọn 1 bank + ShopeePay.'],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Shop mua quà ShopeePay',
+        items: ['Màn mới: quản lý shop mua quà, sản phẩm, ảnh và loại quà.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/gift-shops'),
+      },
+    ],
+  },
+  {
     id: '2026-11-18',
     version: '2.30.0',
     title: 'Cập nhật ngày 18/11/2026',
