@@ -124,8 +124,9 @@ async function pendingOf(bankRows: BankRow[], where: SQL): Promise<PendingSkipRe
 
 /**
  * Hồ sơ của người mở còn thiếu lý do, hồ sơ cũ trước. "Hồ sơ của người mở" là
- * hồ sơ có tài khoản do chính người đó tạo. Mọi hồ sơ của khách đang được mở
- * tài khoản không tính: nhân viên đang làm với chính khách đó.
+ * hồ sơ do chính người đó lập, không xét ai tạo tài khoản (chốt 2026-11-18).
+ * Mọi hồ sơ của khách đang được mở tài khoản không tính: nhân viên đang làm
+ * với chính khách đó.
  */
 export async function pendingSkipReasons(
   actorId: string,
@@ -135,13 +136,8 @@ export async function pendingSkipReasons(
   return pendingOf(
     await allBanks(),
     and(
-      inArray(
-        customers.id,
-        db
-          .select({ id: bankAccounts.customerId })
-          .from(bankAccounts)
-          .where(and(eq(bankAccounts.createdBy, actorId), sql`${bankAccounts.createdAt} >= ${from}`)),
-      ),
+      eq(customers.createdBy, actorId),
+      exists(db.select({ one: sql`1` }).from(bankAccounts).where(eq(bankAccounts.customerId, customers.id))),
       sql`${customers.createdAt} >= ${from}`,
       ne(customers.rootCustomerId, current.rootCustomerId),
       notExists(db.select({ one: sql`1` }).from(bankSkipReasons).where(eq(bankSkipReasons.customerId, customers.id))),
