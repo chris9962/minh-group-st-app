@@ -174,17 +174,19 @@ export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
 /**
  * Ô lọc Tài khoản, đọc cột `account_count` (chỉ dòng `done`, có tính dòng HKD).
- * Số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên. Chọn nhiều giá trị thì
- * lấy khách khớp BẤT KỲ giá trị nào: mỗi khách chỉ có một số tài khoản, nên
- * đòi khớp tất cả là luôn ra bảng rỗng.
+ * Số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên; `bank1shopee` = đúng 2
+ * tài khoản và một trong hai là ShopeePay. Chọn nhiều giá trị thì lấy khách
+ * khớp BẤT KỲ giá trị nào: mỗi khách chỉ có một số tài khoản, nên đòi khớp tất
+ * cả là luôn ra bảng rỗng.
  */
-export const ACCOUNT_FILTERS = ['1', '2', 'gte3'] as const;
+export const ACCOUNT_FILTERS = ['1', '2', 'gte3', 'bank1shopee'] as const;
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
 
 export const ACCOUNT_FILTER_LABEL: Record<AccountFilter, string> = {
   '1': '1 tài khoản',
   '2': '2 tài khoản',
   gte3: '≥3 tài khoản',
+  bank1shopee: '1 bank + ShopeePay',
 };
 
 /**

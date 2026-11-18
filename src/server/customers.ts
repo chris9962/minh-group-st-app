@@ -206,7 +206,7 @@ export type CustomerFilters = {
    * không nới phạm vi.
    */
   departmentId?: string;
-  /** Khớp BẤT KỲ giá trị nào: số = `account_count` đúng bằng số đó, `gte3` = `>= 3`. Rỗng = không lọc. */
+  /** Khớp BẤT KỲ giá trị nào: số = `account_count` đúng bằng số đó, `gte3` = `>= 3`, `bank1shopee` = 1 bank + ShopeePay. Rỗng = không lọc. */
   accounts?: AccountFilter[];
 };
 
@@ -245,10 +245,17 @@ export function customerListScope(
 
 function accountsWhere(filters: AccountFilter[] | undefined): SQL | undefined {
   if (!filters?.length) return undefined;
-  const exact = filters.filter((filter) => filter !== "gte3").map(Number);
+  const exact = filters.filter((filter) => filter !== "gte3" && filter !== "bank1shopee").map(Number);
   return or(
     exact.length > 0 ? inArray(customers.accountCount, exact) : undefined,
     filters.includes("gte3") ? gte(customers.accountCount, 3) : undefined,
+    // `account_count` đếm cả dòng ShopeePay, nên 1 bank + ShopeePay là đúng 2 dòng `done`.
+    filters.includes("bank1shopee")
+      ? and(
+          eq(customers.accountCount, 2),
+          sql`exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.status} = 'done' and ${bankAccounts.bankId} in (select id from ${banks} where ${inArray(banks.code, NON_BANK_CODES)}))`,
+        )
+      : undefined,
   );
 }
 
