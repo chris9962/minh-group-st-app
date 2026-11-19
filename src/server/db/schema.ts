@@ -3374,6 +3374,24 @@ export const zaloNotificationPgds = pgTable(
 );
 
 /**
+ * Số điện thoại nhập tay nhận loại thông báo gửi riêng, cho người không có hồ
+ * sơ nhân viên (migration 0182). `phone` lưu dạng 10 số `0xxxxxxxxx`.
+ */
+export const zaloNotificationPhones = pgTable(
+  "zalo_notification_phones",
+  {
+    accountId: text("account_id").notNull(),
+    kind: text("kind").notNull(),
+    phone: text("phone").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "zalo_notification_phones_pk", columns: [t.accountId, t.kind, t.phone] }),
+  ],
+);
+
+/**
  * Kết quả từng lượt chạy của job huỷ đơn trên PVI Connect (`pvi-cancel-orders/`).
  * Job ghi, worker Zalo đọc để gửi thông báo `pvi-cancel-report`. Migration 0148.
  */

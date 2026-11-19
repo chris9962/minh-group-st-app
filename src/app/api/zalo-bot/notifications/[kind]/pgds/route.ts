@@ -23,7 +23,13 @@ export async function PUT(request: Request, { params }: Params) {
   if (!accountId) return badRequest("Chưa đăng nhập tài khoản Zalo");
 
   try {
-    await saveZaloNotificationPgds(guard.actor, accountId, kind.data, parsed.data.userIds);
+    await saveZaloNotificationPgds(
+      guard.actor,
+      accountId,
+      kind.data,
+      parsed.data.userIds,
+      parsed.data.phones,
+    );
   } catch (e) {
     if (e instanceof ZaloRouteError) return badRequest(e.message);
     throw e;

@@ -148,13 +148,27 @@ export const notificationPeople = (kind: ZaloNotificationKind): 'pgd' | 'staff' 
 
 export const notificationTakesGroups = (kind: ZaloNotificationKind): boolean => !notificationNeedsPgd(kind);
 
+/**
+ * Loại nhận thêm số điện thoại nhập tay. Báo cáo PGĐ không nhận: nội dung tính
+ * theo các phòng của từng PGĐ, số nhập tay không gắn với phòng nào.
+ */
+export const notificationTakesPhones = (kind: ZaloNotificationKind): boolean =>
+  notificationPeople(kind) === 'staff';
+
+export const ZALO_NOTIFICATION_PHONES_MAX = 50;
+
 export const ZaloPersonOption = z.object({ id: z.string(), name: z.string(), phone: z.string() });
 export type ZaloPersonOption = z.infer<typeof ZaloPersonOption>;
+
+/** `name` là tên Zalo worker đã tra ra cho số đó, rỗng khi chưa tra. */
+export const ZaloNotificationPhone = z.object({ phone: z.string(), name: z.string() });
+export type ZaloNotificationPhone = z.infer<typeof ZaloNotificationPhone>;
 
 export const ZaloNotificationRoute = z.object({
   kind: ZaloNotificationKind,
   groups: z.array(ZaloGroupOption),
   pgds: z.array(ZaloPersonOption),
+  phones: z.array(ZaloNotificationPhone),
 });
 export type ZaloNotificationRoute = z.infer<typeof ZaloNotificationRoute>;
 
@@ -165,6 +179,9 @@ export type ZaloNotificationRoutesBody = z.infer<typeof ZaloNotificationRoutesBo
 
 export const ZaloNotificationPgdsBody = z.object({
   userIds: z.array(z.guid()).max(50),
+  phones: z
+    .array(z.string().transform(digitsOnly).refine(isValidPhone, 'Số điện thoại phải có 10 chữ số'))
+    .max(ZALO_NOTIFICATION_PHONES_MAX),
 });
 export type ZaloNotificationPgdsBody = z.infer<typeof ZaloNotificationPgdsBody>;
 

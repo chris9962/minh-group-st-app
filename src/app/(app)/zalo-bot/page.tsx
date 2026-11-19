@@ -125,7 +125,7 @@ export default function ZaloBotPage() {
   const [editingKind, setEditingKind] = useState<ZaloNotificationKind | null>(null);
   const editingGroups = routes.data?.find((r) => r.kind === editingKind)?.groups ?? [];
   const [editingPgdKind, setEditingPgdKind] = useState<ZaloNotificationKind | null>(null);
-  const editingPgds = routes.data?.find((r) => r.kind === editingPgdKind)?.pgds ?? [];
+  const editingPgdRoute = routes.data?.find((r) => r.kind === editingPgdKind);
   const [sendingKind, setSendingKind] = useState<ZaloNotificationKind | null>(null);
 
   const sendNow = useMutation({
@@ -260,12 +260,18 @@ export default function ZaloBotPage() {
                     {routes.data.map((route) => {
                       const people = notificationPeople(route.kind);
                       const takesGroups = notificationTakesGroups(route.kind);
+                      const recipients = [
+                        ...route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`),
+                        ...route.phones.map((p) =>
+                          p.name ? `${p.name} - ${formatPhone(p.phone)}` : formatPhone(p.phone),
+                        ),
+                      ];
                       const peopleText =
-                        route.pgds.length === 0
+                        recipients.length === 0
                           ? people === "pgd"
                             ? "Chưa chọn Phó giám đốc"
                             : "Chưa chọn người nhận"
-                          : route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`).join(", ");
+                          : recipients.join(", ");
                       const groupsText =
                         route.groups.length === 0
                           ? "Chưa chọn nhóm"
@@ -280,7 +286,7 @@ export default function ZaloBotPage() {
                             {takesGroups && <span className={styles.noticeGroups}>{groupsText}</span>}
                           </div>
                           <div className={styles.noticeActions}>
-                            {route.pgds.length + route.groups.length > 0 && (
+                            {recipients.length + route.groups.length > 0 && (
                               <Button variant="secondary" onClick={() => setSendingKind(route.kind)}>
                                 Gửi ngay
                               </Button>
@@ -331,7 +337,8 @@ export default function ZaloBotPage() {
         <NotificationPgdsDialog
           key={`${accountId}:${editingPgdKind}`}
           kind={editingPgdKind}
-          initialUserIds={editingPgds.map((p) => p.id)}
+          initialUserIds={editingPgdRoute?.pgds.map((p) => p.id) ?? []}
+          initialPhones={editingPgdRoute?.phones ?? []}
           onClose={() => setEditingPgdKind(null)}
         />
       )}

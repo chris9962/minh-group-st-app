@@ -9,6 +9,7 @@ import {
   ZaloOutboxStatus,
   ZaloThreadType,
   notificationPeople,
+  notificationTakesPhones,
   type ZaloBotSummary,
   type ZaloContactRow,
   type ZaloContactSort,
@@ -30,6 +31,7 @@ import {
   zaloContacts,
   zaloGroups,
   zaloNotificationPgds,
+  zaloNotificationPhones,
   zaloNotificationRoutes,
   zaloOutbox,
 } from "./db/schema";
@@ -259,6 +261,22 @@ export async function zaloNotificationRoutesFor(accountId: string): Promise<Zalo
     .innerJoin(users, eq(users.id, zaloNotificationPgds.userId))
     .where(eq(zaloNotificationPgds.accountId, accountId))
     .orderBy(asc(users.fullName));
+  const phoneRows = await db
+    .select({
+      kind: zaloNotificationPhones.kind,
+      phone: zaloNotificationPhones.phone,
+      name: zaloContacts.name,
+    })
+    .from(zaloNotificationPhones)
+    .leftJoin(
+      zaloContacts,
+      and(
+        eq(zaloContacts.accountId, zaloNotificationPhones.accountId),
+        eq(zaloContacts.phone, zaloNotificationPhones.phone),
+      ),
+    )
+    .where(eq(zaloNotificationPhones.accountId, accountId))
+    .orderBy(asc(zaloNotificationPhones.createdAt), asc(zaloNotificationPhones.phone));
 
   // Người đã nghỉ, hoặc không còn giữ chức PGĐ với báo cáo PGĐ, không hiện, dù cấu hình còn giữ.
   // Hiện ra thì form chọn đếm họ vào mà danh sách chọn không có họ, nên lưu lại bị từ chối.
@@ -270,6 +288,9 @@ export async function zaloNotificationRoutesFor(accountId: string): Promise<Zalo
     pgds: pgdRows
       .filter((r) => r.kind === kind && eligible(r, kind))
       .map(({ id, name, phone }) => ({ id, name, phone })),
+    phones: notificationTakesPhones(kind)
+      ? phoneRows.filter((r) => r.kind === kind).map(({ phone, name }) => ({ phone, name: name ?? "" }))
+      : [],
   }));
 }
 
@@ -299,9 +320,13 @@ export async function saveZaloNotificationPgds(
   accountId: string,
   kind: ZaloNotificationKind,
   userIds: string[],
+  phones: string[],
 ): Promise<void> {
   const where = peopleWhere(kind);
   if (where === null) throw new ZaloRouteError("Thông báo này không chọn người nhận riêng");
+  const uniquePhones = [...new Set(phones.map(toLocalPhone))];
+  if (uniquePhones.length > 0 && !notificationTakesPhones(kind))
+    throw new ZaloRouteError("Thông báo này không nhận số điện thoại nhập tay");
   const unique = [...new Set(userIds)];
   if (unique.length > 0) {
     const known = await db
@@ -326,7 +351,23 @@ export async function saveZaloNotificationPgds(
       await tx
         .insert(zaloNotificationPgds)
         .values(unique.map((userId) => ({ accountId, kind, userId, createdBy: actor.id })));
+    await tx
+      .delete(zaloNotificationPhones)
+      .where(and(eq(zaloNotificationPhones.accountId, accountId), eq(zaloNotificationPhones.kind, kind)));
+    if (uniquePhones.length > 0)
+      await tx
+        .insert(zaloNotificationPhones)
+        .values(uniquePhones.map((phone) => ({ accountId, kind, phone, createdBy: actor.id })));
   });
+}
+
+export async function routedZaloPhones(accountId: string, kind: ZaloNotificationKind): Promise<string[]> {
+  if (!notificationTakesPhones(kind)) return [];
+  const rows = await db
+    .select({ phone: zaloNotificationPhones.phone })
+    .from(zaloNotificationPhones)
+    .where(and(eq(zaloNotificationPhones.accountId, accountId), eq(zaloNotificationPhones.kind, kind)));
+  return rows.map((r) => r.phone);
 }
 
 /**

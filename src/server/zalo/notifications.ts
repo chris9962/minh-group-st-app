@@ -14,6 +14,7 @@ import {
   enqueueZaloPhoneText,
   routedZaloGroupIds,
   routedZaloPgds,
+  routedZaloPhones,
 } from "../zaloBot";
 import { pgdDailyReport, pgdDailyReportMessages } from "./pgdDailyReport";
 import { pviCancelMissedMessages, pviCancelReportMessages, type PviCancelMissedOrder } from "./pviCancelReport";
@@ -217,9 +218,10 @@ export async function queueZaloNotices(
   force = false,
 ): Promise<number | null> {
   const groupIds = notificationTakesGroups(kind) ? await routedZaloGroupIds(accountId, kind) : [];
-  const phones = notificationPeople(kind)
+  const staffPhones = notificationPeople(kind)
     ? (await routedZaloPgds(accountId, kind)).map((p) => p.phone).filter(isValidPhone)
     : [];
+  const phones = [...staffPhones, ...(await routedZaloPhones(accountId, kind))];
   if (groupIds.length === 0 && phones.length === 0) return null;
 
   const notices = await collectZaloNotice(kind, accountId, force);
