@@ -9,6 +9,7 @@ import {
   ZaloOutboxStatus,
   ZaloThreadType,
   notificationPeople,
+  notificationTakesGroups,
   notificationTakesPhones,
   type ZaloBotSummary,
   type ZaloContactRow,
@@ -16,6 +17,7 @@ import {
   type ZaloGroupOption,
   type ZaloGroupRow,
   type ZaloGroupSort,
+  type ZaloNotificationRecipientsBody,
   type ZaloNotificationRoute,
   type ZaloOutboxRow,
   type ZaloPersonOption,
@@ -315,25 +317,44 @@ export async function zaloPeopleOptions(kind: ZaloNotificationKind): Promise<Zal
     .orderBy(asc(users.fullName));
 }
 
-export async function saveZaloNotificationPgds(
+/**
+ * Thay trọn nơi nhận của một loại thông báo trong một transaction: kiểm hết rồi
+ * mới ghi, nên một danh sách sai thì không danh sách nào được ghi. Chỉ ghi bảng
+ * của kiểu nơi nhận mà loại đó nhận.
+ */
+export async function saveZaloNotificationRecipients(
   actor: User,
   accountId: string,
   kind: ZaloNotificationKind,
-  userIds: string[],
-  phones: string[],
+  input: ZaloNotificationRecipientsBody,
 ): Promise<void> {
+  const takesGroups = notificationTakesGroups(kind);
+  const takesPhones = notificationTakesPhones(kind);
   const where = peopleWhere(kind);
-  if (where === null) throw new ZaloRouteError("Thông báo này không chọn người nhận riêng");
-  const uniquePhones = [...new Set(phones.map(toLocalPhone))];
-  if (uniquePhones.length > 0 && !notificationTakesPhones(kind))
+  const groupIds = [...new Set(input.groupIds)];
+  const userIds = [...new Set(input.userIds)];
+  const phones = [...new Set(input.phones)];
+
+  if (groupIds.length > 0 && !takesGroups) throw new ZaloRouteError("Thông báo này không gửi vào nhóm");
+  if (userIds.length > 0 && where === null)
+    throw new ZaloRouteError("Thông báo này không chọn người nhận riêng");
+  if (phones.length > 0 && !takesPhones)
     throw new ZaloRouteError("Thông báo này không nhận số điện thoại nhập tay");
-  const unique = [...new Set(userIds)];
-  if (unique.length > 0) {
+
+  if (groupIds.length > 0) {
+    const known = await db
+      .select({ id: zaloGroups.id })
+      .from(zaloGroups)
+      .where(and(eq(zaloGroups.accountId, accountId), inArray(zaloGroups.id, groupIds)));
+    if (known.length !== groupIds.length)
+      throw new ZaloRouteError("Có nhóm không thuộc tài khoản Zalo đang đăng nhập");
+  }
+  if (userIds.length > 0 && where !== null) {
     const known = await db
       .select({ id: users.id, phone: users.phone })
       .from(users)
-      .where(and(where, inArray(users.id, unique)));
-    if (known.length !== unique.length)
+      .where(and(where, inArray(users.id, userIds)));
+    if (known.length !== userIds.length)
       throw new ZaloRouteError(
         notificationPeople(kind) === "pgd"
           ? "Chỉ chọn được Phó giám đốc đang làm việc"
@@ -344,20 +365,35 @@ export async function saveZaloNotificationPgds(
   }
 
   await db.transaction(async (tx) => {
-    await tx
-      .delete(zaloNotificationPgds)
-      .where(and(eq(zaloNotificationPgds.accountId, accountId), eq(zaloNotificationPgds.kind, kind)));
-    if (unique.length > 0)
+    if (takesGroups) {
       await tx
-        .insert(zaloNotificationPgds)
-        .values(unique.map((userId) => ({ accountId, kind, userId, createdBy: actor.id })));
-    await tx
-      .delete(zaloNotificationPhones)
-      .where(and(eq(zaloNotificationPhones.accountId, accountId), eq(zaloNotificationPhones.kind, kind)));
-    if (uniquePhones.length > 0)
+        .delete(zaloNotificationRoutes)
+        .where(
+          and(eq(zaloNotificationRoutes.accountId, accountId), eq(zaloNotificationRoutes.kind, kind)),
+        );
+      if (groupIds.length > 0)
+        await tx
+          .insert(zaloNotificationRoutes)
+          .values(groupIds.map((groupId) => ({ accountId, kind, groupId, createdBy: actor.id })));
+    }
+    if (where !== null) {
       await tx
-        .insert(zaloNotificationPhones)
-        .values(uniquePhones.map((phone) => ({ accountId, kind, phone, createdBy: actor.id })));
+        .delete(zaloNotificationPgds)
+        .where(and(eq(zaloNotificationPgds.accountId, accountId), eq(zaloNotificationPgds.kind, kind)));
+      if (userIds.length > 0)
+        await tx
+          .insert(zaloNotificationPgds)
+          .values(userIds.map((userId) => ({ accountId, kind, userId, createdBy: actor.id })));
+    }
+    if (takesPhones) {
+      await tx
+        .delete(zaloNotificationPhones)
+        .where(and(eq(zaloNotificationPhones.accountId, accountId), eq(zaloNotificationPhones.kind, kind)));
+      if (phones.length > 0)
+        await tx
+          .insert(zaloNotificationPhones)
+          .values(phones.map((phone) => ({ accountId, kind, phone, createdBy: actor.id })));
+    }
   });
 }
 
@@ -394,35 +430,6 @@ export async function routedZaloPgds(
 }
 
 export class ZaloRouteError extends Error {}
-
-export async function saveZaloNotificationRoutes(
-  actor: User,
-  accountId: string,
-  kind: ZaloNotificationKind,
-  groupIds: string[],
-): Promise<void> {
-  const unique = [...new Set(groupIds)];
-  if (unique.length > 0) {
-    const known = await db
-      .select({ id: zaloGroups.id })
-      .from(zaloGroups)
-      .where(and(eq(zaloGroups.accountId, accountId), inArray(zaloGroups.id, unique)));
-    if (known.length !== unique.length)
-      throw new ZaloRouteError("Có nhóm không thuộc tài khoản Zalo đang đăng nhập");
-  }
-
-  await db.transaction(async (tx) => {
-    await tx
-      .delete(zaloNotificationRoutes)
-      .where(
-        and(eq(zaloNotificationRoutes.accountId, accountId), eq(zaloNotificationRoutes.kind, kind)),
-      );
-    if (unique.length > 0)
-      await tx
-        .insert(zaloNotificationRoutes)
-        .values(unique.map((groupId) => ({ accountId, kind, groupId, createdBy: actor.id })));
-  });
-}
 
 export async function enqueueZaloMessage(actor: User, input: ZaloSendBody): Promise<void> {
   await db.insert(zaloOutbox).values(

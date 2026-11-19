@@ -179,18 +179,15 @@ export const ZaloNotificationRoute = z.object({
 });
 export type ZaloNotificationRoute = z.infer<typeof ZaloNotificationRoute>;
 
-export const ZaloNotificationRoutesBody = z.object({
+/** Trọn nơi nhận của một loại thông báo. Máy chủ ghi cả ba danh sách trong một transaction. */
+export const ZaloNotificationRecipientsBody = z.object({
   groupIds: z.array(z.string().regex(/^\d+$/)).max(100),
-});
-export type ZaloNotificationRoutesBody = z.infer<typeof ZaloNotificationRoutesBody>;
-
-export const ZaloNotificationPgdsBody = z.object({
   userIds: z.array(z.guid()).max(50),
   phones: z
     .array(z.string().transform(digitsOnly).refine(isValidPhone, 'Số điện thoại phải có 10 chữ số'))
     .max(ZALO_NOTIFICATION_PHONES_MAX),
 });
-export type ZaloNotificationPgdsBody = z.infer<typeof ZaloNotificationPgdsBody>;
+export type ZaloNotificationRecipientsBody = z.infer<typeof ZaloNotificationRecipientsBody>;
 
 export const ZaloSendTarget = z.enum(['group', 'user', 'phone']);
 export type ZaloSendTarget = z.infer<typeof ZaloSendTarget>;
@@ -292,9 +289,9 @@ export async function fetchZaloNotificationRoutes(): Promise<ZaloNotificationRou
   return z.array(ZaloNotificationRoute).parse(await res.json());
 }
 
-export async function saveZaloNotificationRoutes(
+export async function saveZaloNotificationRecipients(
   kind: ZaloNotificationKind,
-  body: ZaloNotificationRoutesBody,
+  body: ZaloNotificationRecipientsBody,
 ): Promise<void> {
   const res = await fetch(`/api/zalo-bot/notifications/${kind}`, {
     method: 'PUT',
@@ -303,7 +300,7 @@ export async function saveZaloNotificationRoutes(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
-    throw new Error(data?.message ?? 'Không lưu được cấu hình thông báo');
+    throw new Error(data?.message ?? 'Không lưu được nơi nhận');
   }
 }
 
@@ -311,21 +308,6 @@ export async function fetchZaloPeopleOptions(kind: ZaloNotificationKind): Promis
   const res = await fetch(`/api/zalo-bot/notifications/${kind}/people-options`);
   if (!res.ok) throw new Error('Không đọc được danh sách người nhận');
   return z.array(ZaloPersonOption).parse(await res.json());
-}
-
-export async function saveZaloNotificationPgds(
-  kind: ZaloNotificationKind,
-  body: ZaloNotificationPgdsBody,
-): Promise<void> {
-  const res = await fetch(`/api/zalo-bot/notifications/${kind}/pgds`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.message ?? 'Không lưu được danh sách người nhận');
-  }
 }
 
 /** Nút "Gửi ngay". Trả số tin đã đưa vào hàng chờ; 0 khi không có gì để gửi. */

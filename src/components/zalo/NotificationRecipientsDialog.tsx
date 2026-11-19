@@ -16,8 +16,7 @@ import {
   notificationPeople,
   notificationTakesGroups,
   notificationTakesPhones,
-  saveZaloNotificationPgds,
-  saveZaloNotificationRoutes,
+  saveZaloNotificationRecipients,
   ZALO_NOTIFICATION_PHONES_MAX,
   ZALO_NOTIFICATION_TITLE,
   type ZaloNotificationRoute,
@@ -73,11 +72,8 @@ export function NotificationRecipientsDialog({ accountId, route, onClose }: Prop
   });
 
   const save = useMutation({
-    mutationFn: () =>
-      Promise.all([
-        takesGroups ? saveZaloNotificationRoutes(kind, { groupIds }) : null,
-        people ? saveZaloNotificationPgds(kind, { userIds, phones }) : null,
-      ]),
+    mutationFn: (phonesToSave: string[]) =>
+      saveZaloNotificationRecipients(kind, { groupIds, userIds, phones: phonesToSave }),
     onSuccess: () => {
       toast.ok("Đã lưu nơi nhận.");
       void queryClient.invalidateQueries({ queryKey: ["zalo-bot", "notifications"] });
@@ -112,14 +108,34 @@ export function NotificationRecipientsDialog({ accountId, route, onClose }: Prop
     setSearch("");
   };
 
+  const pendingPhoneError = (): string => {
+    if (!isValidPhone(phoneInput)) return "Số điện thoại phải có 10 chữ số";
+    if (phones.length >= ZALO_NOTIFICATION_PHONES_MAX)
+      return `Tối đa ${ZALO_NOTIFICATION_PHONES_MAX} số điện thoại`;
+    return "";
+  };
+
   const addPhone = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isValidPhone(phoneInput)) return setPhoneError("Số điện thoại phải có 10 chữ số");
-    if (phones.includes(phoneInput)) return setPhoneError("Số này đã có trong danh sách");
-    if (phones.length >= ZALO_NOTIFICATION_PHONES_MAX)
-      return setPhoneError(`Tối đa ${ZALO_NOTIFICATION_PHONES_MAX} số điện thoại`);
+    const error = phones.includes(phoneInput) ? "Số này đã có trong danh sách" : pendingPhoneError();
+    if (error) return setPhoneError(error);
     setPhones((prev) => [...prev, phoneInput]);
     setPhoneInput("");
+  };
+
+  // Người dùng gõ số xong hay bấm Lưu luôn, không bấm Thêm: số trong ô vẫn phải được lưu.
+  const submit = () => {
+    if (!phoneInput || phones.includes(phoneInput)) return save.mutate(phones);
+    const error = pendingPhoneError();
+    if (error) {
+      setTab("phones");
+      setPhoneError(error);
+      return;
+    }
+    const next = [...phones, phoneInput];
+    setPhones(next);
+    setPhoneInput("");
+    save.mutate(next);
   };
 
   const shownGroups = (groupOptions.data ?? []).filter((g) => matchesSearch(g.name, search));
@@ -137,7 +153,7 @@ export function NotificationRecipientsDialog({ accountId, route, onClose }: Prop
           <Button variant="ghost" onClick={onClose}>
             Thôi
           </Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+          <Button onClick={submit} disabled={save.isPending}>
             Lưu
           </Button>
         </>
