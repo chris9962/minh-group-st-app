@@ -275,6 +275,7 @@ function accountsWhere(filters: AccountFilter[] | undefined): SQL | undefined {
 
 function shopeeWhere(filter: ShopeeFilter | "" | undefined): SQL | undefined {
   if (filter === "yes") return hasShopeePay(customers.id);
+  if (filter === "only") return and(eq(customers.accountCount, 1), hasShopeePay(customers.id));
   if (filter === "no") return not(hasShopeePay(customers.id));
   return undefined;
 }

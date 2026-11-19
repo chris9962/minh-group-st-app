@@ -191,12 +191,16 @@ export const ACCOUNT_FILTER_LABEL: Record<AccountFilter, string> = {
   gte3: '≥3 bank',
 };
 
-/** Ô lọc ShopeePay, nối với ô Tài khoản bằng VÀ: "1 bank" + "Không có ShopeePay" = đúng 1 bank, không ví. */
-export const SHOPEE_FILTERS = ['yes', 'no'] as const;
+/**
+ * Ô lọc ShopeePay, nối với ô Tài khoản bằng VÀ: "1 bank" + "Không có ShopeePay" = đúng 1 bank, không ví.
+ * `only` = có ShopeePay và 0 bank.
+ */
+export const SHOPEE_FILTERS = ['yes', 'only', 'no'] as const;
 export type ShopeeFilter = (typeof SHOPEE_FILTERS)[number];
 
 export const SHOPEE_FILTER_LABEL: Record<ShopeeFilter, string> = {
   yes: 'Có ShopeePay',
+  only: 'Chỉ ShopeePay',
   no: 'Không có ShopeePay',
 };
 
