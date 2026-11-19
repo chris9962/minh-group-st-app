@@ -24,6 +24,24 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-19-2',
+    version: '2.32.0',
+    title: 'Cập nhật ngày 19/11/2026',
+    summary: 'Bộ lọc Tài khoản chỉ đếm bank, thêm bộ lọc ShopeePay.',
+    sections: [
+      {
+        title: 'Khách hàng',
+        items: [
+          'Bộ lọc Tài khoản chỉ đếm bank, không tính ShopeePay.',
+          'Bộ lọc mới ShopeePay: Có ShopeePay, Chỉ ShopeePay, Không có ShopeePay.',
+          'Bỏ lựa chọn 1 bank + ShopeePay. Chọn 1 bank và Có ShopeePay để lọc nhóm khách này.',
+          'Cột Số tài khoản hiện số bank, kèm chữ ShopeePay khi khách có ShopeePay.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+    ],
+  },
+  {
     id: '2026-11-19',
     version: '2.31.0',
     title: 'Cập nhật ngày 19/11/2026',
