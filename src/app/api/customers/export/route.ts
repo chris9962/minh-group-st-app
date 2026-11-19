@@ -1,4 +1,4 @@
-import { accountFiltersFrom } from "@/lib/api/customers";
+import { accountFiltersFrom, shopeeFilterFrom } from "@/lib/api/customers";
 import { recordVisibility } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { actorWith, uuidParam } from "@/server/auth";
@@ -49,6 +49,7 @@ export async function GET(request: Request) {
     // không chọn được người khác qua tham số.
     createdBy: view.kind === "creator" ? view.userId : uuidParam(params.get("staffId")),
     accounts: accountFiltersFrom(params.get("accounts")),
+    shopee: shopeeFilterFrom(params.get("shopee")),
   });
 
   /**

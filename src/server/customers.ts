@@ -10,6 +10,7 @@ import {
   isNull,
   lt,
   ne,
+  not,
   notExists,
   or,
   sql,
@@ -29,6 +30,7 @@ import type {
   CustomerLookupResult,
   CustomerServiceRow,
   CustomerSort,
+  ShopeeFilter,
 } from "@/lib/api/customers";
 import {
   CustomerExportRow,
@@ -206,8 +208,10 @@ export type CustomerFilters = {
    * không nới phạm vi.
    */
   departmentId?: string;
-  /** Khớp BẤT KỲ giá trị nào: số = `account_count` đúng bằng số đó, `gte3` = `>= 3`, `bank1shopee` = 1 bank + ShopeePay. Rỗng = không lọc. */
+  /** Khớp BẤT KỲ giá trị nào, đếm bank không tính ShopeePay: số = đúng bằng số đó, `gte3` = `>= 3`. Rỗng = không lọc. */
   accounts?: AccountFilter[];
+  /** Rỗng hoặc thiếu = không lọc. */
+  shopee?: ShopeeFilter | "";
 };
 
 /**
@@ -243,20 +247,36 @@ export function customerListScope(
   }
 }
 
+/**
+ * Mỗi hồ sơ có tối đa một dòng ShopeePay (`bank_accounts_root_bank_slot`), nên số bank = `account_count` trừ 0 hoặc 1.
+ *
+ * Viết `(id in (câu con không phụ thuộc dòng ngoài)) is true` để Postgres dựng bảng băm một lần rồi tra, đo trên
+ * dump prod 2026-11-19 còn 14-17ms. Bản `exists` theo từng khách mất 286ms, ước lượng chi phí cao làm bật JIT
+ * thành 1,3 giây. Bỏ `is true` thì vế "Có ShopeePay" thành semi join, Postgres ước lượng sai số khách có ví nên
+ * duyệt cả bảng theo ngày tạo: 480ms.
+ */
+const hasShopeePay = (customerId: SQLWrapper) =>
+  sql<boolean>`(${customerId} in (select ${bankAccounts.customerId} from ${bankAccounts} where ${bankAccounts.status} = 'done' and ${bankAccounts.bankId} in (select id from ${banks} where ${inArray(banks.code, NON_BANK_CODES)}))) is true`;
+
 function accountsWhere(filters: AccountFilter[] | undefined): SQL | undefined {
   if (!filters?.length) return undefined;
-  const exact = filters.filter((filter) => filter !== "gte3" && filter !== "bank1shopee").map(Number);
+  const shopee = hasShopeePay(customers.id);
+  const bankCountIs = (n: number) =>
+    or(and(eq(customers.accountCount, n), not(shopee)), and(eq(customers.accountCount, n + 1), shopee));
   return or(
-    exact.length > 0 ? inArray(customers.accountCount, exact) : undefined,
-    filters.includes("gte3") ? gte(customers.accountCount, 3) : undefined,
-    // `account_count` đếm cả dòng ShopeePay, nên 1 bank + ShopeePay là đúng 2 dòng `done`.
-    filters.includes("bank1shopee")
-      ? and(
-          eq(customers.accountCount, 2),
-          sql`exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.status} = 'done' and ${bankAccounts.bankId} in (select id from ${banks} where ${inArray(banks.code, NON_BANK_CODES)}))`,
-        )
+    ...filters
+      .filter((filter) => filter !== "gte3")
+      .map((filter) => bankCountIs(Number(filter))),
+    filters.includes("gte3")
+      ? or(gte(customers.accountCount, 4), and(eq(customers.accountCount, 3), not(shopee)))
       : undefined,
   );
+}
+
+function shopeeWhere(filter: ShopeeFilter | "" | undefined): SQL | undefined {
+  if (filter === "yes") return hasShopeePay(customers.id);
+  if (filter === "no") return not(hasShopeePay(customers.id));
+  return undefined;
 }
 
 /**
@@ -372,6 +392,7 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     query.channelDetail ? eq(customers.channelDetail, query.channelDetail) : undefined,
     accountsWhere(query.accounts),
+    shopeeWhere(query.shopee),
     addressWhere(query.address),
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
@@ -464,6 +485,8 @@ function decorate(page: ReturnType<typeof pickPage>) {
       seq: page.seq,
       rootId: page.rootId,
       accountCount: page.accountCount,
+      bankCount: sql<number>`(${page.accountCount} - (${hasShopeePay(page.id)})::int)`,
+      hasShopeePay: hasShopeePay(page.id),
       note: page.note,
       insuranceCount: page.insuranceCount,
       /**

@@ -2,6 +2,7 @@ import {
   CUSTOMER_ERROR,
   CustomerForm,
   accountFiltersFrom,
+  shopeeFilterFrom,
   type CustomerSort,
 } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
@@ -62,6 +63,7 @@ export async function GET(request: Request) {
         departmentIds: scope.departmentIds,
         departmentId: uuidParam(params.get("departmentId")),
         accounts: accountFiltersFrom(params.get("accounts")),
+        shopee: shopeeFilterFrom(params.get("shopee")),
       },
       pageArgsFrom(url, SORTABLE, "match"),
       // Dấu của Phòng Thanh tra chỉ gửi cho người có `customer:lookup`.

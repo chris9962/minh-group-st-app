@@ -165,6 +165,7 @@ async function hitsOf(source: JumpSource, query: string): Promise<JumpHit[]> {
             staffId: '',
             departmentId: '',
             accounts: [],
+            shopee: '',
             from: '',
             to: '',
           })

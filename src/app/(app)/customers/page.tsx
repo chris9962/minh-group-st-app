@@ -34,7 +34,10 @@ import {
   ACCOUNT_FILTERS,
   ACCOUNT_FILTER_LABEL,
   CUSTOMER_SORT,
+  SHOPEE_FILTERS,
+  SHOPEE_FILTER_LABEL,
   accountFiltersFrom,
+  shopeeFilterFrom,
   deleteCustomer,
   fetchCustomerAddresses,
   fetchCustomerDetail,
@@ -110,6 +113,7 @@ const FIRST_PAGE: CustomerQuery = {
   staffId: "",
   departmentId: "",
   accounts: [],
+  shopee: "",
   from: "",
   to: "",
   page: 0,
@@ -144,6 +148,7 @@ const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
     staffId: params.get("staffId") ?? "",
     departmentId: params.get("departmentId") ?? "",
     accounts: accountFiltersFrom(params.get("accounts")),
+    shopee: shopeeFilterFrom(params.get("shopee")),
     page: pageFromUrl(params.get("page")),
     // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
     // Link cũ ghi "Ngày tạo tăng dần" là `?dir=asc` không kèm `sort`.
@@ -351,6 +356,7 @@ export default function CustomersPage() {
     if (asked.address) params.set("address", asked.address);
     if (asked.staffId) params.set("staffId", asked.staffId);
     if (asked.accounts.length > 0) params.set("accounts", asked.accounts.join(","));
+    if (asked.shopee) params.set("shopee", asked.shopee);
     if (asked.page > 0) params.set("page", String(asked.page + 1));
     if (asked.sort !== "match") params.set("sort", asked.sort);
     if (asked.dir === "asc") params.set("dir", asked.dir);
@@ -388,6 +394,7 @@ export default function CustomersPage() {
     (query.departmentId ? 1 : 0) +
     (query.staffId ? 1 : 0) +
     (query.accounts.length > 0 ? 1 : 0) +
+    (query.shopee ? 1 : 0) +
     (from && to ? 1 : 0);
   // "Chưa có khách nào" và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
@@ -415,6 +422,7 @@ export default function CustomersPage() {
         staffId: asked.staffId,
         departmentId: asked.departmentId,
         accounts: asked.accounts,
+        shopee: asked.shopee,
         from: asked.from,
         to: asked.to,
       });
@@ -491,11 +499,12 @@ export default function CustomersPage() {
         // khoá `accounts`, mà điểm nằm ngoài bảng `customers` nên đưa vào
         // `ORDER BY` là phải gộp cả kho trước khi cắt trang (AGENTS.md §5.2).
         sortable: true,
-        // Hai số đo hai mốc: `accountCount` là tổng từ trước tới giờ, `points`
+        // Hai số đo hai mốc: `bankCount` là tổng từ trước tới giờ, `points`
         // chỉ tính tài khoản mở trong tháng của bộ lọc.
         render: (c) => (
           <span className="tabular-nums">
-            {c.accountCount}
+            {c.bankCount}
+            {c.hasShopeePay ? <span className={styles.shopeePay}> + ShopeePay</span> : null}
             {c.points === null ? "" : ` / ${formatPoints(c.points)}`}
           </span>
         ),
@@ -657,6 +666,7 @@ export default function CustomersPage() {
               departmentId: "",
               staffId: "",
               accounts: [],
+              shopee: "",
             });
           }}
         >
@@ -739,6 +749,17 @@ export default function CustomersPage() {
               value={query.accounts}
               onChange={(v) => refine({ accounts: accountFiltersFrom(v.join(",")) })}
               options={ACCOUNT_FILTERS.map((f) => ({ value: f, label: ACCOUNT_FILTER_LABEL[f] }))}
+            />
+          </FilterField>
+          <FilterField id="shopee" label="ShopeePay" count={query.shopee ? 1 : 0}>
+            <FilterChoices
+              label="ShopeePay"
+              value={query.shopee}
+              onChange={(v) => refine({ shopee: shopeeFilterFrom(v) })}
+              options={[
+                { value: "", label: "Tất cả" },
+                ...SHOPEE_FILTERS.map((f) => ({ value: f, label: SHOPEE_FILTER_LABEL[f] })),
+              ]}
             />
           </FilterField>
         </FilterButton>
@@ -824,6 +845,14 @@ export default function CustomersPage() {
                   {
                     label: `Tài khoản: ${query.accounts.map((f) => ACCOUNT_FILTER_LABEL[f]).join(", ")}`,
                     onRemove: () => refine({ accounts: [] }),
+                  },
+                ]
+              : []),
+            ...(query.shopee
+              ? [
+                  {
+                    label: SHOPEE_FILTER_LABEL[query.shopee],
+                    onRemove: () => refine({ shopee: "" }),
                   },
                 ]
               : []),

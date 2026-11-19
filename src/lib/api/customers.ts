@@ -117,6 +117,9 @@ export const CustomerRow = z.object({
   /** Hồ sơ gốc — để nhận ra hai dòng là cùng một người, không phải trùng tên. */
   rootId: z.string(),
   accountCount: z.number(),
+  /** `accountCount` trừ dòng ShopeePay: số bank khách đã mở, cho cột và ô lọc Tài khoản. */
+  bankCount: z.number(),
+  hasShopeePay: z.boolean(),
   insuranceCount: z.number(),
   giftStatus: z.enum(['none', 'eligible', 'given']),
   /** Tên món đã tặng — chỉ có giá trị khi giftStatus = 'given'. */
@@ -173,21 +176,32 @@ export const CUSTOMER_SORT = ['match', 'name', 'accounts', 'insurance', 'created
 export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
 /**
- * Ô lọc Tài khoản, đọc cột `account_count` (chỉ dòng `done`, có tính dòng HKD).
- * Số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên; `bank1shopee` = đúng 2
- * tài khoản và một trong hai là ShopeePay. Chọn nhiều giá trị thì lấy khách
- * khớp BẤT KỲ giá trị nào: mỗi khách chỉ có một số tài khoản, nên đòi khớp tất
+ * Ô lọc Tài khoản, đếm BANK: `account_count` (chỉ dòng `done`, có tính dòng
+ * HKD) trừ dòng ShopeePay. ShopeePay lọc ở ô riêng, xem `SHOPEE_FILTERS`.
+ * Số = đúng bấy nhiêu bank; `gte3` = từ 3 trở lên. Chọn nhiều giá trị thì lấy
+ * khách khớp BẤT KỲ giá trị nào: mỗi khách chỉ có một số bank, nên đòi khớp tất
  * cả là luôn ra bảng rỗng.
  */
-export const ACCOUNT_FILTERS = ['1', '2', 'gte3', 'bank1shopee'] as const;
+export const ACCOUNT_FILTERS = ['1', '2', 'gte3'] as const;
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
 
 export const ACCOUNT_FILTER_LABEL: Record<AccountFilter, string> = {
-  '1': '1 tài khoản',
-  '2': '2 tài khoản',
-  gte3: '≥3 tài khoản',
-  bank1shopee: '1 bank + ShopeePay',
+  '1': '1 bank',
+  '2': '2 bank',
+  gte3: '≥3 bank',
 };
+
+/** Ô lọc ShopeePay, nối với ô Tài khoản bằng VÀ: "1 bank" + "Không có ShopeePay" = đúng 1 bank, không ví. */
+export const SHOPEE_FILTERS = ['yes', 'no'] as const;
+export type ShopeeFilter = (typeof SHOPEE_FILTERS)[number];
+
+export const SHOPEE_FILTER_LABEL: Record<ShopeeFilter, string> = {
+  yes: 'Có ShopeePay',
+  no: 'Không có ShopeePay',
+};
+
+export const shopeeFilterFrom = (value: string | null): ShopeeFilter | '' =>
+  SHOPEE_FILTERS.find((filter) => filter === value) ?? '';
 
 /**
  * Đọc `accounts=1,gte3` trên URL, trả về theo thứ tự của `ACCOUNT_FILTERS`.
@@ -232,8 +246,10 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
    * ngoài phạm vi thì ra bảng rỗng.
    */
   departmentId: string;
-  /** Số tài khoản hoàn thành, xem `ACCOUNT_FILTERS`. Mảng rỗng = không lọc. */
+  /** Số bank hoàn thành, xem `ACCOUNT_FILTERS`. Mảng rỗng = không lọc. */
   accounts: AccountFilter[];
+  /** Rỗng = không lọc. */
+  shopee: ShopeeFilter | '';
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -254,6 +270,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       staffId: query.staffId,
       departmentId: query.departmentId,
       accounts: query.accounts.join(','),
+      shopee: query.shopee,
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
@@ -348,6 +365,7 @@ export type CustomerExportQuery = Pick<
   | 'from'
   | 'to'
   | 'accounts'
+  | 'shopee'
 >;
 
 /**
