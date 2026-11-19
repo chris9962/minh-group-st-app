@@ -1,0 +1,115 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.picked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-panel);
+}
+
+.pickedTitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  /* Chọn nhiều thì khung tự cuộn, không đẩy danh sách bên dưới ra khỏi màn hình. */
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.chips > li {
+  max-width: 100%;
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-3);
+}
+
+/* Ba tab cùng một chiều cao: chuyển tab thì dialog không co giãn theo độ dài danh sách. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: min(360px, 46vh);
+}
+
+/* Danh sách cuộn riêng: khung Đã chọn ở trên luôn nằm trong tầm nhìn. */
+.options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.phoneRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.phoneField {
+  flex: 1;
+  min-width: 0;
+}
+
+.phoneItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--om-line);
+}
+
+.phoneIcon {
+  flex: none;
+  color: var(--om-text-3);
+}
+
+.phoneText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: 14px;
+}
+
+.phoneName {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--om-red);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .panel {
+    height: auto;
+  }
+}

@@ -119,11 +119,18 @@ export const ZALO_CERT_OVERDUE_MINUTES = 20;
 /** Giờ Việt Nam gửi báo cáo ngày cho PGĐ. Chủ dự án chốt 20:00 ngày 2026-10-13. */
 export const ZALO_PGD_REPORT_AT = '20:00';
 
-export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
-  'insurance-certificate-overdue': `Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
-  'pgd-daily-report': `Báo cáo ngày cho Phó giám đốc, gửi lúc ${ZALO_PGD_REPORT_AT}`,
-  'pvi-cancel-report': 'Kết quả gom và huỷ đơn trên PVI Connect, sau mỗi lượt job huỷ đơn',
-  'pvi-cancel-missed': 'Đơn BH huỷ trong ngày mà chưa huỷ trên PVI Connect, gửi lúc 00:00',
+export const ZALO_NOTIFICATION_TITLE: Record<ZaloNotificationKind, string> = {
+  'insurance-certificate-overdue': 'Đơn bảo hiểm chờ giấy chứng nhận',
+  'pgd-daily-report': 'Báo cáo ngày cho Phó giám đốc',
+  'pvi-cancel-report': 'Kết quả gom và huỷ đơn trên PVI Connect',
+  'pvi-cancel-missed': 'Đơn BH huỷ chưa huỷ trên PVI Connect',
+};
+
+export const ZALO_NOTIFICATION_SCHEDULE: Record<ZaloNotificationKind, string> = {
+  'insurance-certificate-overdue': `Khi đơn chờ quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
+  'pgd-daily-report': `Gửi lúc ${ZALO_PGD_REPORT_AT} hằng ngày`,
+  'pvi-cancel-report': 'Sau mỗi lượt job huỷ đơn',
+  'pvi-cancel-missed': 'Gửi lúc 00:00 hằng ngày, đơn huỷ của ngày trước',
 };
 
 /**

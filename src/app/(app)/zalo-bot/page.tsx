@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
@@ -10,12 +10,11 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { NotificationGroupsDialog } from "@/components/zalo/NotificationGroupsDialog";
-import { NotificationPgdsDialog } from "@/components/zalo/NotificationPgdsDialog";
+import { NotificationCard } from "@/components/zalo/NotificationCard";
+import { NotificationRecipientsDialog } from "@/components/zalo/NotificationRecipientsDialog";
 import { ZaloChatPane } from "@/components/zalo/ZaloChatPane";
 import {
   chatTargetKey,
@@ -26,12 +25,10 @@ import {
   fetchZaloBot,
   fetchZaloNotificationRoutes,
   logoutZaloBot,
-  notificationPeople,
-  notificationTakesGroups,
   sendZaloNotificationNow,
   syncZaloGroups,
   ZALO_BOT_STATUS_LABEL,
-  ZALO_NOTIFICATION_LABEL,
+  ZALO_NOTIFICATION_TITLE,
   ZALO_OUTBOX_STATUS_LABEL,
   ZALO_SEND_TARGET_LABEL,
   ZALO_THREAD_TYPE_LABEL,
@@ -123,9 +120,7 @@ export default function ZaloBotPage() {
     enabled: canView && !!accountId && tab === "notices",
   });
   const [editingKind, setEditingKind] = useState<ZaloNotificationKind | null>(null);
-  const editingGroups = routes.data?.find((r) => r.kind === editingKind)?.groups ?? [];
-  const [editingPgdKind, setEditingPgdKind] = useState<ZaloNotificationKind | null>(null);
-  const editingPgdRoute = routes.data?.find((r) => r.kind === editingPgdKind);
+  const editingRoute = routes.data?.find((r) => r.kind === editingKind);
   const [sendingKind, setSendingKind] = useState<ZaloNotificationKind | null>(null);
 
   const sendNow = useMutation({
@@ -245,70 +240,27 @@ export default function ZaloBotPage() {
               </div>
             )}
 
-            {tab === "notices" && (
-              <SectionCard title="Nơi nhận thông báo" icon={<Bell size={17} />}>
-                {routes.isError ? (
-                  <ErrorState
-                    what="cấu hình thông báo"
-                    onRetry={routes.refetch}
-                    retrying={routes.isFetching}
-                  />
-                ) : routes.isPending ? (
-                  <SkeletonTable rows={2} columns={2} />
-                ) : (
-                  <ul className={styles.notices}>
-                    {routes.data.map((route) => {
-                      const people = notificationPeople(route.kind);
-                      const takesGroups = notificationTakesGroups(route.kind);
-                      const recipients = [
-                        ...route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`),
-                        ...route.phones.map((p) =>
-                          p.name ? `${p.name} - ${formatPhone(p.phone)}` : formatPhone(p.phone),
-                        ),
-                      ];
-                      const peopleText =
-                        recipients.length === 0
-                          ? people === "pgd"
-                            ? "Chưa chọn Phó giám đốc"
-                            : "Chưa chọn người nhận"
-                          : recipients.join(", ");
-                      const groupsText =
-                        route.groups.length === 0
-                          ? "Chưa chọn nhóm"
-                          : route.groups.map((g) => g.name).join(", ");
-                      return (
-                        <li key={route.kind} className={styles.notice}>
-                          <div className={styles.noticeText}>
-                            <span className={styles.noticeLabel}>
-                              {ZALO_NOTIFICATION_LABEL[route.kind]}
-                            </span>
-                            {people && <span className={styles.noticeGroups}>{peopleText}</span>}
-                            {takesGroups && <span className={styles.noticeGroups}>{groupsText}</span>}
-                          </div>
-                          <div className={styles.noticeActions}>
-                            {recipients.length + route.groups.length > 0 && (
-                              <Button variant="secondary" onClick={() => setSendingKind(route.kind)}>
-                                Gửi ngay
-                              </Button>
-                            )}
-                            {people && (
-                              <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
-                                {people === "pgd" ? "Chọn PGĐ" : "Chọn người nhận"}
-                              </Button>
-                            )}
-                            {takesGroups && (
-                              <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
-                                Chọn nhóm
-                              </Button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </SectionCard>
-            )}
+            {tab === "notices" &&
+              (routes.isError ? (
+                <ErrorState
+                  what="cấu hình thông báo"
+                  onRetry={routes.refetch}
+                  retrying={routes.isFetching}
+                />
+              ) : routes.isPending ? (
+                <SkeletonTable rows={2} columns={2} />
+              ) : (
+                <div className={styles.notices}>
+                  {routes.data.map((route) => (
+                    <NotificationCard
+                      key={route.kind}
+                      route={route}
+                      onEdit={() => setEditingKind(route.kind)}
+                      onSend={() => setSendingKind(route.kind)}
+                    />
+                  ))}
+                </div>
+              ))}
 
             {tab === "recent" && (
               <RankTable
@@ -324,22 +276,12 @@ export default function ZaloBotPage() {
         )}
       </main>
 
-      {editingKind && (
-        <NotificationGroupsDialog
-          key={`${accountId}:${editingKind}`}
+      {editingRoute && (
+        <NotificationRecipientsDialog
+          key={`${accountId}:${editingRoute.kind}`}
           accountId={accountId}
-          kind={editingKind}
-          initialGroupIds={editingGroups.map((g) => g.id)}
+          route={editingRoute}
           onClose={() => setEditingKind(null)}
-        />
-      )}
-      {editingPgdKind && (
-        <NotificationPgdsDialog
-          key={`${accountId}:${editingPgdKind}`}
-          kind={editingPgdKind}
-          initialUserIds={editingPgdRoute?.pgds.map((p) => p.id) ?? []}
-          initialPhones={editingPgdRoute?.phones ?? []}
-          onClose={() => setEditingPgdKind(null)}
         />
       )}
       {sendingKind && (
@@ -351,7 +293,7 @@ export default function ZaloBotPage() {
           onConfirm={() => sendNow.mutate(sendingKind)}
           onClose={() => setSendingKind(null)}
         >
-          Bạn muốn gửi ngay &quot;{ZALO_NOTIFICATION_LABEL[sendingKind]}&quot;?
+          Bạn muốn gửi ngay &quot;{ZALO_NOTIFICATION_TITLE[sendingKind]}&quot;?
         </ConfirmDialog>
       )}
     </RequirePermission>
