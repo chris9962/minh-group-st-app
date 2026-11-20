@@ -4,8 +4,8 @@ import { INT_MAX } from './limits';
 
 /* ── Phôi bảo hiểm theo tháng (chốt 2026-10-29) ───────────────────────────
  * Thiết kế: docs/spec-phan-phoi-bao-hiem-2026-10-29.md. Văn phòng cấp phôi cho
- * phòng, Trưởng phòng nhập số đã phát và đã sử dụng của từng người. Số còn lại
- * cộng dồn qua tháng và không chặn việc tạo đơn.
+ * phòng, Trưởng phòng nhập số đã phát của từng người. Nhân viên hoặc Trưởng phòng
+ * báo số còn lại. Số còn lại cộng dồn qua tháng và không chặn việc tạo đơn.
  */
 
 export const BlankType = z.object({ id: z.string(), code: z.string(), name: z.string() });
@@ -66,17 +66,26 @@ export const DepartmentBlanksForm = z.object({
 });
 export type DepartmentBlanksForm = z.infer<typeof DepartmentBlanksForm>;
 
-/** Phôi của một người, một loại phôi, trong tháng đang xem. `used` null là dùng `usedOrders`. */
+/** Phôi của một người, một loại phôi, trong tháng đang xem. `used` null là chưa ai báo số còn lại. */
 export const StaffBlankCell = z.object({
   blankTypeId: z.string(),
   opening: z.number(),
   issued: z.number(),
   used: z.number().nullable(),
-  usedOrders: z.number(),
   /** Phôi chưa sử dụng trả về phòng trong tháng người này rời phòng. */
   returned: z.number(),
+  /** Lần báo số còn lại gần nhất, của nhân viên hoặc Trưởng phòng. */
+  reportedAt: z.string().nullable(),
 });
 export type StaffBlankCell = z.infer<typeof StaffBlankCell>;
+
+type Held = Pick<StaffBlankCell, 'opening' | 'issued' | 'used' | 'returned'>;
+
+/** Tổng đã nhận: tồn tháng trước + đã phát − trả lại. */
+export const receivedOf = (cell: Held): number => cell.opening + cell.issued - cell.returned;
+
+/** Số người này đang giữ theo lần báo gần nhất. */
+export const remainingOf = (cell: Held): number => receivedOf(cell) - (cell.used ?? 0);
 
 export const StaffBlankRow = z.object({
   userId: z.string(),
@@ -84,7 +93,7 @@ export const StaffBlankRow = z.object({
   role: RoleKey,
   title: z.string(),
   cells: z.array(StaffBlankCell),
-  /** Đã chuyển sang phòng khác trong tháng: dòng chỉ xem, không sửa. */
+  /** Đã chuyển sang phòng khác trong tháng: chỉ sửa được số phòng thực nhận lại. */
   movedOut: z.boolean(),
   mix: MixCount,
 });
@@ -105,12 +114,19 @@ export type StaffBlanks = z.infer<typeof StaffBlanks>;
 
 export const StaffBlanksForm = z.object({
   rows: z.array(
-    z.object({ userId: z.guid(), blankTypeId: z.guid(), issued: count, used: count.nullable() }),
+    z.object({
+      userId: z.guid(),
+      blankTypeId: z.guid(),
+      /** null là giữ số đang lưu, để màn mở lâu không ghi đè số người khác vừa phát. */
+      issued: count.nullable(),
+      /** null là giữ số đã báo. Gửi số chỉ khi Trưởng phòng sửa ô Còn lại. */
+      remaining: count.nullable(),
+      /** `reportedAt` của ô lúc mở màn, để không ghi đè lần báo mới hơn của nhân viên. */
+      reportedAt: z.string().nullable(),
+    }),
   ),
 });
 export type StaffBlanksForm = z.infer<typeof StaffBlanksForm>;
-
-export const usedOf = (cell: StaffBlankCell): number => cell.used ?? cell.usedOrders;
 
 /** Phần trăm đơn điện và đơn xe, làm tròn; null khi chưa có đơn nào. */
 export function mixPercent(mix: MixCount): { electric: number; motorbike: number } | null {

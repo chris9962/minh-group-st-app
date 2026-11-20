@@ -18,9 +18,9 @@ import { cancelInsuranceOrder } from "@/server/insurance";
  * do thành tham số không bắt buộc, và bỏ nó khỏi thân yêu cầu là huỷ được đơn
  * mà không ai biết vì sao.
  *
- * Người có `insurance:set-status` huỷ được mọi đơn. Người tạo cũng được huỷ
- * đơn `Hoàn thành` của chính mình; chốt quyền và trạng thái nằm ở hàm server
- * để lời gọi tự tạo không vượt được quy tắc đó.
+ * Chỉ người có `insurance:set-status` huỷ được (chủ dự án chốt 2026-11-20);
+ * chốt quyền và trạng thái nằm ở hàm server để lời gọi tự tạo không vượt được
+ * quy tắc đó.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor(request);

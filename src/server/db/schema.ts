@@ -1425,13 +1425,6 @@ export const bankAccounts = pgTable(
     createdBy: uuid("created_by").references(() => users.id),
     /** Snapshot phòng lúc tạo (#8) — trục lọc phạm vi. */
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
-    /**
-     * Phòng đã tính phiếu thông tin cho tài khoản này, trigger ghi lúc tài khoản
-     * sang Hoàn thành lần đầu (migration 0161). Khác `created_by_department_id`:
-     * cột này không đổi khi chuyển phòng, vì phiếu đã tính thì ở lại phòng cũ.
-     * Null là chưa tính phiếu.
-     */
-    blankDepartmentId: uuid("blank_department_id").references(() => departments.id),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     /**
      * Lúc đã báo "sắp bị xoá" cho chủ bản nháp; `null` = chưa báo. Timer chạy
@@ -2320,9 +2313,10 @@ export const insuranceBlankDepartmentQuotas = pgTable(
 );
 
 /**
- * Trưởng phòng nhập cho một người trong một tháng: số đã phát và số đã sử dụng
- * thực tế. `used` null là dùng số đơn Hoàn thành app đếm được. `department_id`
- * là phòng đã phát, để người chuyển phòng giữa tháng vẫn trừ vào phòng cũ.
+ * Phôi của một người trong một tháng: số Trưởng phòng đã phát và số đã sử dụng.
+ * `used` do app suy ra lúc nhân viên hoặc Trưởng phòng báo số còn lại (chốt
+ * 2026-11-20); null là chưa báo, tính như 0. `department_id` là phòng đã phát,
+ * để người chuyển phòng giữa tháng vẫn trừ vào phòng cũ.
  */
 export const insuranceBlankStaffQuotas = pgTable(
   "insurance_blank_staff_quotas",
@@ -2333,12 +2327,13 @@ export const insuranceBlankStaffQuotas = pgTable(
     departmentId: uuid("department_id").notNull().references(() => departments.id),
     issued: integer("issued").notNull(),
     used: integer("used"),
-    /** Số đơn Hoàn thành, trigger `mgst_count_insurance_blank` giữ (migration 0160). Âm được: huỷ đơn sau khi chuyển phòng. */
-    usedOrders: integer("used_orders").notNull().default(0),
     /** Phôi chưa sử dụng về phòng lúc người này rời phòng; giữ nguyên khi người đó quay lại. */
     returned: integer("returned").notNull().default(0),
-    /** Lúc người này rời phòng. Dòng đã khoá là lịch sử: Trưởng phòng không sửa, trigger không cộng trừ. */
+    /** Lúc người này rời phòng. Dòng đã khoá là lịch sử; Trưởng phòng chỉ sửa được số thực nhận lại. */
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    /** Lần báo số còn lại gần nhất, để Trưởng phòng thấy ai chưa báo (migration 0183). */
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
+    reportedBy: uuid("reported_by").references(() => users.id, { onDelete: "set null" }),
     updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2348,16 +2343,17 @@ export const insuranceBlankStaffQuotas = pgTable(
       columns: [t.yearMonth, t.userId, t.blankTypeId, t.departmentId],
     }),
     index("insurance_blank_staff_quotas_department").on(t.departmentId, t.yearMonth),
-    // Mỗi người, mỗi tháng, mỗi loại phôi chỉ một dòng đang mở: trigger cộng trừ vào đúng dòng đó.
+    // Mỗi người, mỗi tháng, mỗi loại phôi chỉ một dòng đang mở: lượt báo số còn lại ghi vào đúng dòng đó.
     uniqueIndex("insurance_blank_staff_quotas_open")
       .on(t.yearMonth, t.userId, t.blankTypeId)
       .where(sql`closed_at is null`),
     check("insurance_blank_staff_quotas_issued", sql`${t.issued} >= 0`),
     check("insurance_blank_staff_quotas_used", sql`${t.used} is null or ${t.used} >= 0`),
     check("insurance_blank_staff_quotas_returned", sql`${t.returned} >= 0`),
+    // Database còn vế `used_orders <> 0` tới khi bỏ cột ở lượt deploy sau migration 0183.
     check(
       "insurance_blank_staff_quotas_not_empty",
-      sql`${t.issued} > 0 or ${t.used} is not null or ${t.usedOrders} <> 0 or ${t.returned} <> 0 or ${t.closedAt} is not null`,
+      sql`${t.issued} > 0 or ${t.used} is not null or ${t.returned} <> 0 or ${t.closedAt} is not null`,
     ),
   ],
 );
@@ -2400,9 +2396,8 @@ export const bankBlankDepartmentQuotas = pgTable(
 );
 
 /**
- * Trưởng phòng hoặc Phó phòng nhập cho một người: số phiếu đã phát và số đã sử
- * dụng thực tế. `used` null là dùng số tài khoản app đếm được. `department_id`
- * là phòng đã phát, cùng lý do `insurance_blank_staff_quotas`.
+ * Phiếu của một người: số Trưởng phòng hoặc Phó phòng đã phát và số đã sử dụng,
+ * cùng luật `insurance_blank_staff_quotas`. `department_id` là phòng đã phát.
  */
 export const bankBlankStaffQuotas = pgTable(
   "bank_blank_staff_quotas",
@@ -2413,12 +2408,12 @@ export const bankBlankStaffQuotas = pgTable(
     departmentId: uuid("department_id").notNull().references(() => departments.id),
     issued: integer("issued").notNull(),
     used: integer("used"),
-    /** Số tài khoản đã tính phiếu, trigger `mgst_count_bank_blank` giữ (migration 0161). */
-    usedOrders: integer("used_orders").notNull().default(0),
     /** Phiếu chưa sử dụng về phòng lúc người này rời phòng; giữ nguyên khi người đó quay lại. */
     returned: integer("returned").notNull().default(0),
-    /** Lúc người này rời phòng. Dòng đã khoá là lịch sử: không sửa, trigger không cộng trừ. */
+    /** Lúc người này rời phòng. Dòng đã khoá là lịch sử; Trưởng phòng chỉ sửa được số thực nhận lại. */
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    reportedAt: timestamp("reported_at", { withTimezone: true }),
+    reportedBy: uuid("reported_by").references(() => users.id, { onDelete: "set null" }),
     updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2431,7 +2426,7 @@ export const bankBlankStaffQuotas = pgTable(
     check("bank_blank_staff_quotas_returned", sql`${t.returned} >= 0`),
     check(
       "bank_blank_staff_quotas_not_empty",
-      sql`${t.issued} > 0 or ${t.used} is not null or ${t.usedOrders} <> 0 or ${t.returned} <> 0 or ${t.closedAt} is not null`,
+      sql`${t.issued} > 0 or ${t.used} is not null or ${t.returned} <> 0 or ${t.closedAt} is not null`,
     ),
   ],
 );

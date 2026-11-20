@@ -14,7 +14,7 @@ import type {
 import { fixedSalaryOf } from "@/lib/api/staff";
 import type { ProfileInfoForm } from "@/lib/api/profile";
 import { shiftMonth } from "@/lib/period";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
+import { businessMonth, monthRange } from "@/lib/format";
 import {
   assignableRoles,
   can,
@@ -600,7 +600,6 @@ export async function staffTargetFor(
 }
 
 type SaveErrorCode =
-  | "department-move-blocked"
   | "username-taken"
   | "staff-code-taken"
   | "role-too-high"
@@ -627,7 +626,6 @@ export type SaveOutcome =
  * Cùng kiểu với `MODULE_LABEL` · `ACTION_LABEL` · `SCOPE_LABEL` ở `lib/types.ts`.
  */
 const SAVE_ERROR_MESSAGE: Record<SaveErrorCode, string> = {
-  "department-move-blocked": "Chưa chuyển phòng được",
   "username-taken": "Tên đăng nhập này đã có người dùng",
   "staff-code-taken": "Mã nhân viên này đã có người dùng",
   "role-too-high": "Bạn không gán được chức vụ cao hơn quyền của chính mình",
@@ -736,27 +734,6 @@ async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boo
  * không sinh ở `createStaff` để chuỗi chữ và bản băm chắc chắn cùng một giá
  * trị — hai chỗ sinh riêng là thứ sớm muộn lệch nhau.
  */
-/** Lý do chưa chuyển phòng được, null là chuyển được. Đếm bằng `count` để câu báo nêu đúng số. */
-async function moveBlockedMessage(tx: Tx, userId: string, fullName: string): Promise<string | null> {
-  const [orders] = await tx
-    .select({
-      pending: count(sql`case when ${insuranceOrders.status} not in ('done', 'cancelled') then 1 end`),
-      today: count(
-        sql`case when ${insuranceOrders.createdAt} >= ((${businessDay()}::date)::timestamp at time zone ${BUSINESS_TIMEZONE}) then 1 end`,
-      ),
-    })
-    .from(insuranceOrders)
-    .where(eq(insuranceOrders.createdBy, userId));
-  if (orders.pending > 0) return `${fullName} còn ${orders.pending} đơn bảo hiểm chưa hoàn thành.`;
-  if (orders.today > 0) return `${fullName} có ${orders.today} đơn bảo hiểm lập trong ngày, chuyển phòng vào ngày sau.`;
-  const [accounts] = await tx
-    .select({ creating: count() })
-    .from(bankAccounts)
-    .where(and(eq(bankAccounts.createdBy, userId), eq(bankAccounts.status, "creating")));
-  if (accounts.creating > 0) return `${fullName} còn ${accounts.creating} tài khoản ngân hàng đang tạo.`;
-  return null;
-}
-
 async function writeStaff(
   id: string,
   form: StaffForm,
@@ -800,21 +777,18 @@ async function writeStaff(
        * nối TRƯỚC khi cắt trang — đúng hình dạng câu hỏi mà AGENTS.md §5.2 cấm.
        */
       const [before] = await tx
-        .select({ departmentId: users.departmentId, fullName: users.fullName })
+        .select({ departmentId: users.departmentId })
         .from(users)
         .where(eq(users.id, id));
       const movedTo = form.departmentId || null;
       if (before && before.departmentId !== movedTo) {
         /**
          * Phôi bảo hiểm và phiếu ngân hàng không đi theo người (chủ dự án chốt
-         * 2026-11-02): phần đã sử dụng ở lại phòng cũ, phần chưa sử dụng về phòng
-         * cũ. Để số ở phòng cũ đứng yên sau lúc chuyển, người này không được còn
-         * đơn hay tài khoản dở, và không có đơn lập trong ngày, vì đơn chỉ huỷ
-         * được trong ngày lập. Khoá trước khi dời bản ghi, để không giữ khoá đơn
-         * và tài khoản trong lúc đợi một lượt lưu phôi đang chạy.
+         * 2026-11-02): phần đã sử dụng ở lại phòng cũ, phần còn lại theo lần báo
+         * gần nhất về phòng cũ. Đơn và tài khoản không đổi số phôi (chốt
+         * 2026-11-20), nên lượt chuyển không chờ đơn nào. Khoá trước khi dời bản
+         * ghi, để không giữ khoá đơn và tài khoản trong lúc đợi một lượt lưu phôi.
          */
-        const blocked = await moveBlockedMessage(tx, id, before.fullName);
-        if (blocked) throw new MoveBlocked(blocked);
         if (before.departmentId) {
           const at = new Date();
           await closeStaffBlanks(tx, id, before.departmentId, at);
@@ -961,11 +935,6 @@ const checkCeilings = (actor: User, form: StaffForm, action: Action): SaveErrorC
   return null;
 };
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-/** Lượt chuyển phòng bị luật phôi bảo hiểm chặn; câu báo nêu tên người và số đơn. */
-class MoveBlocked extends Error {}
-
 /** Trùng khoá lúc ghi → đúng mã lỗi 422 mà client đang chờ, không phải 500. */
 async function writeGuarded(
   id: string,
@@ -975,7 +944,6 @@ async function writeGuarded(
   try {
     return { password: await writeStaff(id, form, mode) };
   } catch (e) {
-    if (e instanceof MoveBlocked) return { code: "department-move-blocked", message: e.message };
     const constraint = uniqueViolationOf(e);
     if (constraint === null) throw e;
     if (constraint.includes("staff_code")) return { code: "staff-code-taken" };

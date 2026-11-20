@@ -31,10 +31,6 @@ const client = await pool.connect();
 try {
   await client.query("BEGIN");
   await client.query("SET LOCAL statement_timeout = '30s'");
-  // Trigger đếm phiếu ngân hàng (migration 0161) từ chối xoá tài khoản do đồng
-  // nghiệp đã chuyển phòng lập trên khách của người nghỉ. Tắt trong transaction
-  // này rồi chạy `bun run db:recount-blanks -- --apply` sau khi xoá.
-  await client.query("ALTER TABLE bank_accounts DISABLE TRIGGER bank_accounts_count_blank");
   await client.query("CREATE TEMP TABLE target_users (id uuid primary key, username text not null) ON COMMIT DROP");
   const matched = await client.query<{ id: string; username: string }>(
     "INSERT INTO target_users SELECT id, username FROM users WHERE lower(username) = ANY($1::text[]) RETURNING id, username",
@@ -53,6 +49,15 @@ try {
         `Tên có thể tương ứng trong DB: ${nearby}.`,
     );
   }
+
+  // Xoá dòng đã phát làm phòng nhận lại cả phần người đó đã dùng, nên dừng để Trưởng phòng xử lý trước.
+  const issued = await client.query<{ username: string }>(`
+    SELECT DISTINCT t.username FROM target_users t
+    WHERE EXISTS (SELECT 1 FROM insurance_blank_staff_quotas q WHERE q.user_id = t.id AND q.issued > 0)
+       OR EXISTS (SELECT 1 FROM bank_blank_staff_quotas q WHERE q.user_id = t.id AND q.issued > 0)
+    ORDER BY t.username`);
+  if (issued.rows.length > 0)
+    throw new Error(`Còn phôi hoặc phiếu đã phát, chưa xoá được: ${issued.rows.map((row) => row.username).join(", ")}.`);
 
   await client.query("CREATE TEMP TABLE target_customers (id uuid primary key) ON COMMIT DROP");
   await client.query("INSERT INTO target_customers SELECT id FROM customers WHERE created_by IN (SELECT id FROM target_users)");
@@ -109,9 +114,8 @@ try {
     await client.query("DELETE FROM insurance_blank_staff_quotas WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM bank_blank_staff_quotas WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM users WHERE id IN (SELECT id FROM target_users)");
-    await client.query("ALTER TABLE bank_accounts ENABLE TRIGGER bank_accounts_count_blank");
     await client.query("COMMIT");
-    console.log(`Đã xoá dữ liệu database của ${USERNAMES.length} tài khoản. Ảnh S3 chưa bị xoá. Chạy bun run db:recount-blanks -- --apply để đếm lại phiếu.`);
+    console.log(`Đã xoá dữ liệu database của ${USERNAMES.length} tài khoản. Ảnh S3 chưa bị xoá.`);
   }
 } catch (error) {
   await client.query("ROLLBACK").catch(() => undefined);

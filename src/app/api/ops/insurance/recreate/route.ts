@@ -9,7 +9,7 @@ import { recreateStuckOrders } from "@/server/ops";
  * Hai quyền chứ không một: `system:view-ops` mở màn, `insurance:create` mới là
  * quyền lập đơn — kết quả của lượt bấm này là một loạt đơn mới, đúng thứ quyền
  * kia nói tới. Luật huỷ từng đơn vẫn do `cancelInsuranceOrder` giữ, nên người
- * không có `insurance:set-status` chỉ cấp lại được đơn lập trong ngày.
+ * không có `insurance:set-status` không cấp lại được đơn nào.
  *
  * Trả 200 kể cả khi mọi đơn đều không làm được: đây là lô, mỗi đơn có kết quả
  * riêng, và màn in từng dòng. Một mã lỗi chung sẽ giấu mất đơn nào hỏng vì sao.

@@ -197,7 +197,7 @@ export const Action = z.enum([
    * Ở banking (migration 0156, chốt 2026-10-31): cấp phiếu thông tin ngân hàng.
    */
   'allocate-blanks',
-  /** Đặc biệt — insurance (0154) và banking (0156): Trưởng phòng, Phó phòng nhập số đã phát và đã sử dụng của người trong phòng. */
+  /** Đặc biệt — insurance (0154) và banking (0156): Trưởng phòng, Phó phòng nhập số đã phát và số còn lại của người trong phòng. */
   'split-blanks',
   /** Đặc biệt — attendance (migration 0155, chốt 2026-10-30): ghi công thay nhân viên ở bảng chấm công. */
   'record-attendance',

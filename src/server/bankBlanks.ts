@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type {
   BankDepartmentBlanks,
   BankDepartmentBlanksForm,
@@ -7,19 +7,19 @@ import type {
   BankStaffBlanksForm,
 } from "@/lib/api/bankBlanks";
 import type { BlankType, DepartmentBlankCell } from "@/lib/api/insuranceBlanks";
+import { receivedOf, remainingOf } from "@/lib/api/insuranceBlanks";
+import type { OwnBlank, OwnBlankReport } from "@/lib/api/myBlanks";
 import { businessMonth } from "@/lib/format";
 import { recordVisibility } from "@/lib/permissions";
 import { ROLE_RANK, type RoleKey, type User } from "@/lib/types";
 import { db } from "./db/client";
 import { bankBlankDepartmentQuotas, bankBlankStaffQuotas, banks, departments, staffRoster, users } from "./db/schema";
-import { blankMonthEditable } from "./insuranceBlanks";
+import { blankMonthEditable, Refused } from "./insuranceBlanks";
 
 /**
  * Phiếu thông tin ngân hàng theo tháng (chốt 2026-10-31). Cùng luật phôi bảo
- * hiểm ở `insuranceBlanks.ts`, khác hai chỗ: loại phiếu là ngân hàng, và số đã
- * sử dụng (`used_orders`) do trigger `mgst_count_bank_blank` đếm tài khoản sang
- * Hoàn thành lần đầu, theo tháng của ngày hồ sơ khách (migration 0161). Lỗi hay
- * Đã sửa lỗi sau đó không đổi số; xoá dòng mới trả phiếu lại.
+ * hiểm ở `insuranceBlanks.ts`, khác một chỗ: loại phiếu là ngân hàng. Tài khoản
+ * ngân hàng không cộng trừ phiếu (chủ dự án chốt 2026-11-20).
  */
 
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -43,7 +43,7 @@ const salesDepartments = () =>
     .where(and(eq(departments.type, "sales"), eq(departments.active, true)))
     .orderBy(asc(departments.name));
 
-/** Tháng đầu tiên văn phòng cấp hoặc Trưởng phòng nhập; dòng chỉ do trigger tạo không tính. */
+/** Tháng đầu tiên văn phòng cấp, Trưởng phòng phát hoặc có người báo số còn lại. */
 async function firstBlankMonth(conn: Db = db): Promise<string | null> {
   const result = await conn.execute<{ month: string | null }>(sql`
     select min(year_month) as month from (
@@ -132,8 +132,6 @@ async function shortfallMessage(conn: Db, departmentIds: string[], fromMonth: st
   }
   return null;
 }
-
-class Refused extends Error {}
 
 async function lockDepartments(conn: Db, departmentIds: string[]) {
   if (departmentIds.length === 0) return;
@@ -260,8 +258,8 @@ async function membersOf(departmentId: string, month: string): Promise<Member[]>
 
 type QuotaRow = typeof bankBlankStaffQuotas.$inferSelect;
 
-/** Số Trưởng phòng nhập, không có thì số tài khoản trigger đếm. */
-const usedOfRow = (row: QuotaRow) => row.used ?? row.usedOrders;
+/** Chưa ai báo số còn lại thì coi như chưa dùng phiếu nào. */
+const usedOfRow = (row: QuotaRow) => row.used ?? 0;
 
 /** Dòng phiếu của những người này ở MỘT phòng, từ `start` tới `month`. */
 const staffRows = (conn: Db, departmentId: string, userIds: string[], start: string, month: string) =>
@@ -291,8 +289,8 @@ function cellOf(rows: QuotaRow[], userId: string, bankId: string, month: string)
     opening,
     issued: current?.issued ?? 0,
     used: current?.used ?? null,
-    usedAccounts: current?.usedOrders ?? 0,
     returned: current?.returned ?? 0,
+    reportedAt: current?.reportedAt?.toISOString() ?? null,
   };
 }
 
@@ -302,19 +300,13 @@ export async function closeBankStaffBlanks(tx: Db, userId: string, departmentId:
   const rows = await tx
     .select()
     .from(bankBlankStaffQuotas)
-    .where(
-      and(
-        eq(bankBlankStaffQuotas.userId, userId),
-        eq(bankBlankStaffQuotas.departmentId, departmentId),
-        isNull(bankBlankStaffQuotas.closedAt),
-      ),
-    )
+    .where(and(eq(bankBlankStaffQuotas.userId, userId), eq(bankBlankStaffQuotas.departmentId, departmentId)))
     .orderBy(asc(bankBlankStaffQuotas.yearMonth));
   const first = await firstBlankMonth(tx);
   const now = businessMonth();
   const carry = new Map<string, number>();
   const hasNow = new Set<string>();
-  let closed = rows.length;
+  let closed = 0;
   // Tồn các tháng trước mà tháng hiện tại chưa có dòng: ghi một dòng khoá mang số trả về, để phòng nhận lại đủ.
   const flush = async (bankId: string) => {
     const left = carry.get(bankId) ?? 0;
@@ -335,8 +327,9 @@ export async function closeBankStaffBlanks(tx: Db, userId: string, departmentId:
     // Tháng trước tháng cấp đầu không tính, cùng luật màn đọc: chỉ khoá.
     const counted = !first || r.yearMonth >= first;
     const balance = counted ? (carry.get(r.bankId) ?? 0) + r.issued - usedOfRow(r) - r.returned : 0;
-    const returned = counted && r.yearMonth >= now ? Math.max(balance, 0) : 0;
+    const returned = counted && !r.closedAt && r.yearMonth >= now ? Math.max(balance, 0) : 0;
     if (counted) carry.set(r.bankId, balance - returned);
+    if (r.closedAt) continue;
     if (r.yearMonth === now) hasNow.add(r.bankId);
     await tx
       .update(bankBlankStaffQuotas)
@@ -349,6 +342,7 @@ export async function closeBankStaffBlanks(tx: Db, userId: string, departmentId:
           eq(bankBlankStaffQuotas.departmentId, departmentId),
         ),
       );
+    closed++;
   }
   for (const key of carry.keys()) await flush(key);
   return closed;
@@ -430,66 +424,98 @@ export async function saveBankStaffBlanks(
     return { ok: false, message: "Không tìm thấy phòng này trong phạm vi của bạn." };
 
   const [types, members] = await Promise.all([activeBanks(), membersOf(departmentId, month)]);
-  const bankIds = new Set(types.map((t) => t.id));
-  const memberIds = new Set(members.map((m) => m.userId));
-  if (form.rows.some((r) => !bankIds.has(r.blankTypeId))) return { ok: false, message: "Ngân hàng không hợp lệ" };
+  const bankName = new Map(types.map((t) => [t.id, t.name]));
+  const memberName = new Map(members.map((m) => [m.userId, m.fullName]));
+  if (form.rows.some((r) => !bankName.has(r.blankTypeId))) return { ok: false, message: "Ngân hàng không hợp lệ" };
+  if (month !== businessMonth() && form.rows.some((r) => r.remaining !== null))
+    return { ok: false, message: "Chỉ nhập số còn lại ở tháng hiện tại." };
 
   // Người không còn thuộc phòng thì bỏ qua, không từ chối: màn mở từ trước lúc có người chuyển đi vẫn lưu được.
-  const rows = form.rows.filter((r) => memberIds.has(r.userId));
+  const rows = form.rows.filter((r) => memberName.has(r.userId));
   const userIds = [...new Set(rows.map((r) => r.userId))];
   try {
     await db.transaction(async (tx) => {
       await lockDepartments(tx, [departmentId]);
-      const existing =
-        userIds.length > 0
-          ? await tx
-              .select()
-              .from(bankBlankStaffQuotas)
-              .where(
-                and(
-                  eq(bankBlankStaffQuotas.yearMonth, month),
-                  eq(bankBlankStaffQuotas.departmentId, departmentId),
-                  inArray(bankBlankStaffQuotas.userId, userIds),
-                ),
-              )
-          : [];
+      const first = await firstBlankMonth(tx);
+      const start = first && first < month ? first : month;
+      const history = userIds.length > 0 ? await staffRows(tx, departmentId, userIds, start, month) : [];
+      const at = new Date();
+      const edited: { userId: string; bankId: string; label: string }[] = [];
 
       for (const r of rows) {
-        const old = existing.find((e) => e.userId === r.userId && e.bankId === r.blankTypeId);
-        // Dòng đã khoá là lịch sử của người đã rời phòng.
-        if (old?.closedAt) continue;
-        if (old && old.issued === r.issued && old.used === r.used) continue;
-        if (!old && r.issued === 0 && r.used === null) continue;
+        const old = history.find((e) => e.yearMonth === month && e.userId === r.userId && e.bankId === r.blankTypeId);
+        const cell = cellOf(history, r.userId, r.blankTypeId, month);
+        const label = `${memberName.get(r.userId)}, phiếu ${bankName.get(r.blankTypeId)}`;
         const key = and(
           eq(bankBlankStaffQuotas.yearMonth, month),
           eq(bankBlankStaffQuotas.userId, r.userId),
           eq(bankBlankStaffQuotas.bankId, r.blankTypeId),
           eq(bankBlankStaffQuotas.departmentId, departmentId),
         );
-        // Dòng còn số tài khoản trigger đếm hay số đã trả về phòng thì giữ lại với hai ô trống.
-        if (r.issued === 0 && r.used === null && old?.usedOrders === 0 && old.returned === 0)
-          await tx.delete(bankBlankStaffQuotas).where(key);
-        else
+
+        // Dòng đã khoá là lịch sử của người đã rời phòng. Trưởng phòng chỉ sửa được số thực nhận lại.
+        if (old?.closedAt) {
+          if (r.remaining === null) continue;
+          const held = cell.opening + old.issued;
+          if (r.remaining > held) throw new Refused(`${label}: phòng nhận lại tối đa ${held} phiếu.`);
           await tx
-            .insert(bankBlankStaffQuotas)
-            .values({
-              yearMonth: month,
-              userId: r.userId,
-              bankId: r.blankTypeId,
-              departmentId,
-              issued: r.issued,
-              used: r.used,
-              updatedBy: actor.id,
-            })
-            .onConflictDoUpdate({
-              target: [
-                bankBlankStaffQuotas.yearMonth,
-                bankBlankStaffQuotas.userId,
-                bankBlankStaffQuotas.bankId,
-                bankBlankStaffQuotas.departmentId,
-              ],
-              set: { issued: r.issued, used: r.used, updatedBy: actor.id, updatedAt: new Date() },
-            });
+            .update(bankBlankStaffQuotas)
+            .set({ returned: r.remaining, used: held - r.remaining, reportedAt: at, reportedBy: actor.id, updatedBy: actor.id, updatedAt: at })
+            .where(key);
+          continue;
+        }
+        // Màn mở từ trước lượt chuyển phòng: không mở dòng mới ở phòng người này vừa rời.
+        if (!old && history.some((e) => e.yearMonth === month && e.userId === r.userId && e.closedAt)) continue;
+
+        const issued = r.issued ?? old?.issued ?? 0;
+        if (r.remaining === null && issued === (old?.issued ?? 0)) continue;
+        if (r.remaining !== null && (old?.reportedAt?.toISOString() ?? null) !== r.reportedAt)
+          throw new Refused(`${label}: nhân viên vừa báo số còn lại. Bạn tải lại trang rồi nhập lại.`);
+        const received = cell.opening + issued - (old?.returned ?? 0);
+        if (r.remaining !== null && r.remaining > received)
+          throw new Refused(`${label}: còn lại tối đa ${received} phiếu.`);
+        const used = r.remaining !== null ? received - r.remaining : (old?.used ?? null);
+        if (used !== null && used > received)
+          throw new Refused(`${label}: đã phát ít hơn số đã sử dụng ${used} phiếu.`);
+        edited.push({ userId: r.userId, bankId: r.blankTypeId, label });
+
+        if (old && issued === 0 && used === null && old.returned === 0 && old.reportedAt === null) {
+          await tx.delete(bankBlankStaffQuotas).where(key);
+          continue;
+        }
+        const reported = r.remaining !== null ? { reportedAt: at, reportedBy: actor.id } : {};
+        await tx
+          .insert(bankBlankStaffQuotas)
+          .values({
+            yearMonth: month,
+            userId: r.userId,
+            bankId: r.blankTypeId,
+            departmentId,
+            issued,
+            used,
+            updatedBy: actor.id,
+            ...reported,
+          })
+          .onConflictDoUpdate({
+            target: [
+              bankBlankStaffQuotas.yearMonth,
+              bankBlankStaffQuotas.userId,
+              bankBlankStaffQuotas.bankId,
+              bankBlankStaffQuotas.departmentId,
+            ],
+            set: { issued, used, updatedBy: actor.id, updatedAt: at, ...reported },
+          });
+      }
+
+      // Số phát tháng trước đổi thì tồn đầu tháng này đổi, mà số đã sử dụng tháng này ghi theo tồn cũ.
+      const now = businessMonth();
+      if (month < now && edited.length > 0) {
+        const current = await staffRows(tx, departmentId, [...new Set(edited.map((e) => e.userId))], start, now);
+        for (const e of edited) {
+          const left = remainingOf(cellOf(current, e.userId, e.bankId, now));
+          if (left < 0)
+            throw new Refused(`${e.label}: tháng ${monthText(now)} đã sử dụng nhiều hơn số đã nhận ${-left} phiếu.`);
+        }
       }
 
       const shortfall = await shortfallMessage(tx, [departmentId], month);
@@ -500,4 +526,62 @@ export async function saveBankStaffBlanks(
     throw e;
   }
   return { ok: true };
+}
+
+/* ── Nhân viên tự báo số còn lại ───────────────────────────────────────── */
+
+/** Cùng luật `ownBlanks` của `insuranceBlanks.ts`. */
+export async function ownBankBlanks(conn: Db, userId: string, departmentId: string): Promise<OwnBlank[]> {
+  const month = businessMonth();
+  const types = await activeBanks();
+  const first = await firstBlankMonth(conn);
+  const rows = await staffRows(conn, departmentId, [userId], first && first < month ? first : month, month);
+  return types.flatMap((t) => {
+    const cell = cellOf(rows, userId, t.id, month);
+    const received = receivedOf(cell);
+    if (received <= 0) return [];
+    return [{ id: t.id, name: t.name, received, remaining: remainingOf(cell), reportedAt: cell.reportedAt }];
+  });
+}
+
+/** Cùng luật `reportOwnBlanks` của `insuranceBlanks.ts`. */
+export async function reportOwnBankBlanks(tx: Db, userId: string, departmentId: string, items: OwnBlankReport[]) {
+  if (items.length === 0) return;
+  const month = businessMonth();
+  const types = await activeBanks();
+  const first = await firstBlankMonth(tx);
+  const rows = await staffRows(tx, departmentId, [userId], first && first < month ? first : month, month);
+  const at = new Date();
+  for (const item of items) {
+    const bank = types.find((t) => t.id === item.id);
+    if (!bank) throw new Refused("Ngân hàng không hợp lệ");
+    const cell = cellOf(rows, userId, item.id, month);
+    const received = receivedOf(cell);
+    if (item.received !== received)
+      throw new Refused(`Phiếu ${bank.name}: Trưởng phòng vừa đổi số phát. Bạn tải lại trang rồi báo lại.`);
+    if (item.remaining > received) throw new Refused(`Phiếu ${bank.name}: bạn chỉ nhận ${received} phiếu.`);
+    const used = received - item.remaining;
+    await tx
+      .insert(bankBlankStaffQuotas)
+      .values({
+        yearMonth: month,
+        userId,
+        bankId: item.id,
+        departmentId,
+        issued: 0,
+        used,
+        reportedAt: at,
+        reportedBy: userId,
+        updatedBy: userId,
+      })
+      .onConflictDoUpdate({
+        target: [
+          bankBlankStaffQuotas.yearMonth,
+          bankBlankStaffQuotas.userId,
+          bankBlankStaffQuotas.bankId,
+          bankBlankStaffQuotas.departmentId,
+        ],
+        set: { used, reportedAt: at, reportedBy: userId, updatedBy: userId, updatedAt: at },
+      });
+  }
 }

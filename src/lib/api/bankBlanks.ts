@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { RoleKey } from '@/lib/types';
-import { BlankType, DepartmentBlankCell, StaffBlanksForm } from './insuranceBlanks';
+import { BlankType, DepartmentBlankCell, StaffBlankCell, StaffBlanksForm } from './insuranceBlanks';
 import { INT_MAX } from './limits';
 
 /* ── Phiếu thông tin ngân hàng theo tháng (chốt 2026-10-31) ────────────────
  * Cùng luật phôi bảo hiểm: văn phòng cấp phiếu cho phòng, Trưởng phòng và Phó
- * phòng nhập số đã phát và đã sử dụng của từng người, số còn lại cộng dồn qua
- * tháng. Mỗi ngân hàng là một loại phiếu, nên `blankTypeId` ở đây là id ngân hàng.
+ * phòng nhập số đã phát của từng người, nhân viên hoặc Trưởng phòng báo số còn
+ * lại, số còn lại cộng dồn qua tháng. Mỗi ngân hàng là một loại phiếu, nên
+ * `blankTypeId` ở đây là id ngân hàng.
  */
 
 export const BankDepartmentBlankRow = z.object({
@@ -31,16 +32,8 @@ export const BankDepartmentBlanksForm = z.object({
 });
 export type BankDepartmentBlanksForm = z.infer<typeof BankDepartmentBlanksForm>;
 
-/** Phiếu của một người, một ngân hàng, trong tháng đang xem. `used` null là dùng `usedAccounts`. */
-export const BankStaffBlankCell = z.object({
-  blankTypeId: z.string(),
-  opening: z.number(),
-  issued: z.number(),
-  used: z.number().nullable(),
-  usedAccounts: z.number(),
-  /** Phiếu chưa sử dụng trả về phòng trong tháng người này rời phòng. */
-  returned: z.number(),
-});
+/** Phiếu của một người, một ngân hàng, cùng hình dạng ô phôi bảo hiểm. */
+export const BankStaffBlankCell = StaffBlankCell;
 export type BankStaffBlankCell = z.infer<typeof BankStaffBlankCell>;
 
 export const BankStaffBlankRow = z.object({
@@ -49,7 +42,7 @@ export const BankStaffBlankRow = z.object({
   role: RoleKey,
   title: z.string(),
   cells: z.array(BankStaffBlankCell),
-  /** Đã chuyển sang phòng khác trong tháng: dòng chỉ xem, không sửa. */
+  /** Đã chuyển sang phòng khác trong tháng: chỉ sửa được số phòng thực nhận lại. */
   movedOut: z.boolean(),
 });
 export type BankStaffBlankRow = z.infer<typeof BankStaffBlankRow>;

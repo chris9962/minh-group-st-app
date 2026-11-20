@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type {
   BlankType,
   DepartmentBlankCell,
@@ -10,6 +10,8 @@ import type {
   StaffBlanks,
   StaffBlanksForm,
 } from "@/lib/api/insuranceBlanks";
+import { receivedOf, remainingOf } from "@/lib/api/insuranceBlanks";
+import type { OwnBlank, OwnBlankReport } from "@/lib/api/myBlanks";
 import { businessMonth } from "@/lib/format";
 import { shiftMonth } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
@@ -31,13 +33,13 @@ import {
  * `docs/spec-phan-phoi-bao-hiem-2026-10-29.md`.
  *
  * Số tồn, số còn lại và cảnh báo không lưu: tính lại từ dòng cấp và dòng phát mỗi
- * lần đọc. Số đơn Hoàn thành (`used_orders`) là cột đếm do trigger
- * `mgst_count_insurance_blank` giữ (migration 0160), nên màn không đọc lại đơn.
+ * lần đọc. Đơn bảo hiểm không cộng trừ phôi (chủ dự án chốt 2026-11-20): nhân viên
+ * hay Trưởng phòng báo số còn lại, app ghi `used` = tổng đã nhận − số còn lại.
  * Chuyển phòng (chủ dự án chốt 2026-11-02): dòng ở phòng cũ khoá lại làm lịch sử,
  * phôi chưa sử dụng về phòng cũ qua cột `returned`.
  */
 
-type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 type TypeRow = BlankType & { product: "motorbike" | "electric-accident"; sumInsured: number | null };
 type Outcome = { ok: true } | { ok: false; message: string };
 
@@ -73,7 +75,7 @@ const salesDepartments = () =>
     .where(and(eq(departments.type, "sales"), eq(departments.active, true)))
     .orderBy(asc(departments.name));
 
-/** Tháng đầu tiên văn phòng cấp hoặc Trưởng phòng nhập; dòng chỉ do trigger tạo không tính. */
+/** Tháng đầu tiên văn phòng cấp, Trưởng phòng phát hoặc có người báo số còn lại. */
 async function firstBlankMonth(conn: Db = db): Promise<string | null> {
   const result = await conn.execute<{ month: string | null }>(sql`
     select min(year_month) as month from (
@@ -211,10 +213,11 @@ async function shortfallMessage(conn: Db, departmentIds: string[], fromMonth: st
   return null;
 }
 
-class Refused extends Error {}
+/** Lượt lưu phôi, phiếu bị từ chối; câu báo hiện thẳng cho người dùng. */
+export class Refused extends Error {}
 
 /** Khoá dòng phòng, theo thứ tự id, trước khi đọc sổ phôi. `no key update` để không chặn lượt ghi trỏ khoá ngoại vào phòng. */
-async function lockDepartments(conn: Db, departmentIds: string[]) {
+export async function lockDepartments(conn: Db, departmentIds: string[]) {
   if (departmentIds.length === 0) return;
   await conn
     .select({ id: departments.id })
@@ -359,8 +362,8 @@ async function membersOf(departmentId: string, month: string): Promise<Member[]>
 
 type QuotaRow = typeof insuranceBlankStaffQuotas.$inferSelect;
 
-/** Số Trưởng phòng nhập, không có thì số đơn Hoàn thành trigger đếm. */
-const usedOfRow = (row: QuotaRow) => row.used ?? row.usedOrders;
+/** Chưa ai báo số còn lại thì coi như chưa dùng phôi nào. */
+const usedOfRow = (row: QuotaRow) => row.used ?? 0;
 
 /** Dòng phôi của những người này ở MỘT phòng, từ `start` tới `month`. */
 const staffRows = (conn: Db, departmentId: string, userIds: string[], start: string, month: string) =>
@@ -390,8 +393,8 @@ function cellOf(rows: QuotaRow[], userId: string, blankTypeId: string, month: st
     opening,
     issued: current?.issued ?? 0,
     used: current?.used ?? null,
-    usedOrders: current?.usedOrders ?? 0,
     returned: current?.returned ?? 0,
+    reportedAt: current?.reportedAt?.toISOString() ?? null,
   };
 }
 
@@ -400,25 +403,22 @@ function cellOf(rows: QuotaRow[], userId: string, blankTypeId: string, month: st
  * phòng (chủ dự án chốt 2026-11-02). Phôi chưa sử dụng của tháng hiện tại và tháng
  * sau về phòng qua `returned`; tồn của các tháng trước gộp vào tháng hiện tại. Số âm
  * không về phòng, ở lại dòng của người đó. Trả về số dòng đã khoá.
+ *
+ * Đọc cả dòng đã khoá từ lượt rời phòng trước: chúng không đổi nữa nhưng vẫn góp
+ * vào tồn mang sang, thiếu chúng thì lượt rời phòng thứ hai trả thiếu.
  */
 export async function closeStaffBlanks(tx: Db, userId: string, departmentId: string, at: Date): Promise<number> {
   await lockDepartments(tx, [departmentId]);
   const rows = await tx
     .select()
     .from(insuranceBlankStaffQuotas)
-    .where(
-      and(
-        eq(insuranceBlankStaffQuotas.userId, userId),
-        eq(insuranceBlankStaffQuotas.departmentId, departmentId),
-        isNull(insuranceBlankStaffQuotas.closedAt),
-      ),
-    )
+    .where(and(eq(insuranceBlankStaffQuotas.userId, userId), eq(insuranceBlankStaffQuotas.departmentId, departmentId)))
     .orderBy(asc(insuranceBlankStaffQuotas.yearMonth));
   const first = await firstBlankMonth(tx);
   const now = businessMonth();
   const carry = new Map<string, number>();
   const hasNow = new Set<string>();
-  let closed = rows.length;
+  let closed = 0;
   // Tồn các tháng trước mà tháng hiện tại chưa có dòng: ghi một dòng khoá mang số trả về, để phòng nhận lại đủ.
   const flush = async (blankTypeId: string) => {
     const left = carry.get(blankTypeId) ?? 0;
@@ -439,8 +439,9 @@ export async function closeStaffBlanks(tx: Db, userId: string, departmentId: str
     // Tháng trước tháng cấp đầu không tính, cùng luật màn đọc: chỉ khoá.
     const counted = !first || r.yearMonth >= first;
     const balance = counted ? (carry.get(r.blankTypeId) ?? 0) + r.issued - usedOfRow(r) - r.returned : 0;
-    const returned = counted && r.yearMonth >= now ? Math.max(balance, 0) : 0;
+    const returned = counted && !r.closedAt && r.yearMonth >= now ? Math.max(balance, 0) : 0;
     if (counted) carry.set(r.blankTypeId, balance - returned);
+    if (r.closedAt) continue;
     if (r.yearMonth === now) hasNow.add(r.blankTypeId);
     await tx
       .update(insuranceBlankStaffQuotas)
@@ -453,6 +454,7 @@ export async function closeStaffBlanks(tx: Db, userId: string, departmentId: str
           eq(insuranceBlankStaffQuotas.departmentId, departmentId),
         ),
       );
+    closed++;
   }
   for (const key of carry.keys()) await flush(key);
   return closed;
@@ -539,66 +541,99 @@ export async function saveStaffBlanks(
     return { ok: false, message: "Không tìm thấy phòng này trong phạm vi của bạn." };
 
   const [types, members] = await Promise.all([activeTypes(), membersOf(departmentId, month)]);
-  const typeIds = new Set(types.map((t) => t.id));
-  const memberIds = new Set(members.map((m) => m.userId));
-  if (form.rows.some((r) => !typeIds.has(r.blankTypeId))) return { ok: false, message: "Loại phôi không hợp lệ" };
+  const typeName = new Map(types.map((t) => [t.id, t.name]));
+  const memberName = new Map(members.map((m) => [m.userId, m.fullName]));
+  if (form.rows.some((r) => !typeName.has(r.blankTypeId))) return { ok: false, message: "Loại phôi không hợp lệ" };
+  // Số còn lại báo vào tháng trước thì phần đã dùng tính hai lần, ở tháng trước và ở tồn tháng này.
+  if (month !== businessMonth() && form.rows.some((r) => r.remaining !== null))
+    return { ok: false, message: "Chỉ nhập số còn lại ở tháng hiện tại." };
 
   // Người không còn thuộc phòng thì bỏ qua, không từ chối: màn mở từ trước lúc có người chuyển đi vẫn lưu được.
-  const rows = form.rows.filter((r) => memberIds.has(r.userId));
+  const rows = form.rows.filter((r) => memberName.has(r.userId));
   const userIds = [...new Set(rows.map((r) => r.userId))];
   try {
     await db.transaction(async (tx) => {
       await lockDepartments(tx, [departmentId]);
-      const existing =
-        userIds.length > 0
-          ? await tx
-              .select()
-              .from(insuranceBlankStaffQuotas)
-              .where(
-                and(
-                  eq(insuranceBlankStaffQuotas.yearMonth, month),
-                  eq(insuranceBlankStaffQuotas.departmentId, departmentId),
-                  inArray(insuranceBlankStaffQuotas.userId, userIds),
-                ),
-              )
-          : [];
+      const first = await firstBlankMonth(tx);
+      const start = first && first < month ? first : month;
+      const history = userIds.length > 0 ? await staffRows(tx, departmentId, userIds, start, month) : [];
+      const at = new Date();
+      const edited: { userId: string; blankTypeId: string; label: string }[] = [];
 
       for (const r of rows) {
-        const old = existing.find((e) => e.userId === r.userId && e.blankTypeId === r.blankTypeId);
-        // Dòng đã khoá là lịch sử của người đã rời phòng.
-        if (old?.closedAt) continue;
-        if (old && old.issued === r.issued && old.used === r.used) continue;
-        if (!old && r.issued === 0 && r.used === null) continue;
+        const old = history.find((e) => e.yearMonth === month && e.userId === r.userId && e.blankTypeId === r.blankTypeId);
+        const cell = cellOf(history, r.userId, r.blankTypeId, month);
+        const label = `${memberName.get(r.userId)}, ${typeName.get(r.blankTypeId)}`;
         const key = and(
           eq(insuranceBlankStaffQuotas.yearMonth, month),
           eq(insuranceBlankStaffQuotas.userId, r.userId),
           eq(insuranceBlankStaffQuotas.blankTypeId, r.blankTypeId),
           eq(insuranceBlankStaffQuotas.departmentId, departmentId),
         );
-        // Dòng còn số đơn trigger đếm hay số đã trả về phòng thì giữ lại với hai ô trống.
-        if (r.issued === 0 && r.used === null && old?.usedOrders === 0 && old.returned === 0)
-          await tx.delete(insuranceBlankStaffQuotas).where(key);
-        else
+
+        // Dòng đã khoá là lịch sử của người đã rời phòng. Trưởng phòng chỉ sửa được số thực nhận lại.
+        if (old?.closedAt) {
+          if (r.remaining === null) continue;
+          const held = cell.opening + old.issued;
+          if (r.remaining > held) throw new Refused(`${label}: phòng nhận lại tối đa ${held} phôi.`);
           await tx
-            .insert(insuranceBlankStaffQuotas)
-            .values({
-              yearMonth: month,
-              userId: r.userId,
-              blankTypeId: r.blankTypeId,
-              departmentId,
-              issued: r.issued,
-              used: r.used,
-              updatedBy: actor.id,
-            })
-            .onConflictDoUpdate({
-              target: [
-                insuranceBlankStaffQuotas.yearMonth,
-                insuranceBlankStaffQuotas.userId,
-                insuranceBlankStaffQuotas.blankTypeId,
-                insuranceBlankStaffQuotas.departmentId,
-              ],
-              set: { issued: r.issued, used: r.used, updatedBy: actor.id, updatedAt: new Date() },
-            });
+            .update(insuranceBlankStaffQuotas)
+            .set({ returned: r.remaining, used: held - r.remaining, reportedAt: at, reportedBy: actor.id, updatedBy: actor.id, updatedAt: at })
+            .where(key);
+          continue;
+        }
+        // Màn mở từ trước lượt chuyển phòng: không mở dòng mới ở phòng người này vừa rời.
+        if (!old && history.some((e) => e.yearMonth === month && e.userId === r.userId && e.closedAt)) continue;
+
+        const issued = r.issued ?? old?.issued ?? 0;
+        if (r.remaining === null && issued === (old?.issued ?? 0)) continue;
+        if (r.remaining !== null && (old?.reportedAt?.toISOString() ?? null) !== r.reportedAt)
+          throw new Refused(`${label}: nhân viên vừa báo số còn lại. Bạn tải lại trang rồi nhập lại.`);
+        const received = cell.opening + issued - (old?.returned ?? 0);
+        if (r.remaining !== null && r.remaining > received)
+          throw new Refused(`${label}: còn lại tối đa ${received} phôi.`);
+        const used = r.remaining !== null ? received - r.remaining : (old?.used ?? null);
+        if (used !== null && used > received)
+          throw new Refused(`${label}: đã phát ít hơn số đã sử dụng ${used} phôi.`);
+        edited.push({ userId: r.userId, blankTypeId: r.blankTypeId, label });
+
+        if (old && issued === 0 && used === null && old.returned === 0 && old.reportedAt === null) {
+          await tx.delete(insuranceBlankStaffQuotas).where(key);
+          continue;
+        }
+        const reported = r.remaining !== null ? { reportedAt: at, reportedBy: actor.id } : {};
+        await tx
+          .insert(insuranceBlankStaffQuotas)
+          .values({
+            yearMonth: month,
+            userId: r.userId,
+            blankTypeId: r.blankTypeId,
+            departmentId,
+            issued,
+            used,
+            updatedBy: actor.id,
+            ...reported,
+          })
+          .onConflictDoUpdate({
+            target: [
+              insuranceBlankStaffQuotas.yearMonth,
+              insuranceBlankStaffQuotas.userId,
+              insuranceBlankStaffQuotas.blankTypeId,
+              insuranceBlankStaffQuotas.departmentId,
+            ],
+            set: { issued, used, updatedBy: actor.id, updatedAt: at, ...reported },
+          });
+      }
+
+      // Số phát tháng trước đổi thì tồn đầu tháng này đổi, mà số đã sử dụng tháng này ghi theo tồn cũ.
+      const now = businessMonth();
+      if (month < now && edited.length > 0) {
+        const current = await staffRows(tx, departmentId, [...new Set(edited.map((e) => e.userId))], start, now);
+        for (const e of edited) {
+          const left = remainingOf(cellOf(current, e.userId, e.blankTypeId, now));
+          if (left < 0)
+            throw new Refused(`${e.label}: tháng ${monthText(now)} đã sử dụng nhiều hơn số đã nhận ${-left} phôi.`);
+        }
       }
 
       const shortfall = await shortfallMessage(tx, [departmentId], month);
@@ -609,6 +644,68 @@ export async function saveStaffBlanks(
     throw e;
   }
   return { ok: true };
+}
+
+/* ── Nhân viên tự báo số còn lại ───────────────────────────────────────── */
+
+/** Phôi người này đang giữ ở phòng hiện tại, tháng hiện tại. Chỉ loại đã nhận phôi. */
+export async function ownBlanks(conn: Db, userId: string, departmentId: string): Promise<OwnBlank[]> {
+  const month = businessMonth();
+  const types = await activeTypes();
+  const first = await firstBlankMonth(conn);
+  const rows = await staffRows(conn, departmentId, [userId], first && first < month ? first : month, month);
+  return types.flatMap((t) => {
+    const cell = cellOf(rows, userId, t.id, month);
+    const received = receivedOf(cell);
+    if (received <= 0) return [];
+    return [{ id: t.id, name: t.name, received, remaining: remainingOf(cell), reportedAt: cell.reportedAt }];
+  });
+}
+
+/**
+ * Ghi số còn lại người này vừa đếm, vào dòng tháng hiện tại ở phòng hiện tại. Phía gọi
+ * phải khoá phòng và đọc lại phòng của người báo trước, để không ghi lên dòng mà lượt
+ * chuyển phòng vừa khoá.
+ */
+export async function reportOwnBlanks(tx: Db, userId: string, departmentId: string, items: OwnBlankReport[]) {
+  if (items.length === 0) return;
+  const month = businessMonth();
+  const types = await activeTypes();
+  const first = await firstBlankMonth(tx);
+  const rows = await staffRows(tx, departmentId, [userId], first && first < month ? first : month, month);
+  const at = new Date();
+  for (const item of items) {
+    const type = types.find((t) => t.id === item.id);
+    if (!type) throw new Refused("Loại phôi không hợp lệ");
+    const cell = cellOf(rows, userId, item.id, month);
+    const received = receivedOf(cell);
+    if (item.received !== received)
+      throw new Refused(`${type.name}: Trưởng phòng vừa đổi số phát. Bạn tải lại trang rồi báo lại.`);
+    if (item.remaining > received) throw new Refused(`${type.name}: bạn chỉ nhận ${received} phôi.`);
+    const used = received - item.remaining;
+    await tx
+      .insert(insuranceBlankStaffQuotas)
+      .values({
+        yearMonth: month,
+        userId,
+        blankTypeId: item.id,
+        departmentId,
+        issued: 0,
+        used,
+        reportedAt: at,
+        reportedBy: userId,
+        updatedBy: userId,
+      })
+      .onConflictDoUpdate({
+        target: [
+          insuranceBlankStaffQuotas.yearMonth,
+          insuranceBlankStaffQuotas.userId,
+          insuranceBlankStaffQuotas.blankTypeId,
+          insuranceBlankStaffQuotas.departmentId,
+        ],
+        set: { used, reportedAt: at, reportedBy: userId, updatedBy: userId, updatedAt: at },
+      });
+  }
 }
 
 /** Tên phòng cho dòng nhật ký. */

@@ -24,6 +24,10 @@
   width: 90px;
 }
 
+.cellInvalid {
+  border-color: var(--om-red);
+}
+
 .cellAdjust {
   display: flex;
   align-items: center;

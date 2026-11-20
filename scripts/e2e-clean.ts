@@ -22,6 +22,7 @@ import {
   attendanceChecks,
   auditLog,
   bankAccounts,
+  bankBlankStaffQuotas,
   banks,
   channels,
   customerChanges,
@@ -33,6 +34,7 @@ import {
   hamlets,
   giftItems,
   hospitals,
+  insuranceBlankStaffQuotas,
   insurancePackages,
   kpiScores,
   referralCodes,
@@ -142,6 +144,9 @@ for (const u of accounts) {
   await db.delete(salarySnapshots).where(eq(salarySnapshots.userId, u.id));
   // Lượt ghi công trỏ tới người ghi mà không cascade, nên xoá trước tài khoản.
   await db.delete(attendanceChecks).where(eq(attendanceChecks.recordedBy, u.id));
+  // Tài khoản test tự báo số còn lại thì có dòng phôi, phiếu riêng; khoá ngoại không cascade.
+  await db.delete(insuranceBlankStaffQuotas).where(eq(insuranceBlankStaffQuotas.userId, u.id));
+  await db.delete(bankBlankStaffQuotas).where(eq(bankBlankStaffQuotas.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 if (accounts.length) wiped.push(`tài khoản: ${accounts.length}`);

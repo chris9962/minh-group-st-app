@@ -1275,6 +1275,13 @@
       "when": 1789891500900,
       "tag": "0182_zalo_notification_phones",
       "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1789891501000,
+      "tag": "0183_blanks_manual_remaining",
+      "breakpoints": true
     }
   ]
 }

@@ -40,6 +40,7 @@ import { TopStaffCards } from "@/components/dashboard/TopStaffCards";
 import { TopStaffDialog } from "@/components/dashboard/TopStaffDialog";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { SalaryAdvanceCard } from "@/components/payroll/SalaryAdvanceCard";
+import { MyBlanksLine } from "@/components/blanks/MyBlanksLine";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
 import { formatCount, formatPoints, formatVnd } from "@/lib/format";
@@ -270,6 +271,7 @@ export default function DashboardPage() {
 
       <main className={styles.body}>
         <SalaryAdvanceCard />
+        <MyBlanksLine />
         {isPending && (
           <>
             <SkeletonStats count={3} />

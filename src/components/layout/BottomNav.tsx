@@ -1,18 +1,24 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { Menu, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { MyBlanksDialog } from "@/components/blanks/MyBlanksDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { NavIcon } from "./NavIcon";
 import { useUnreadCount } from "./useUnreadCount";
 import type { JumpTarget, NavIconKey } from "@/lib/nav";
 import { jumpCreateActions } from "@/lib/nav";
+import { fetchMyBlanks, hasOwnBlanks, MY_BLANKS_KEY } from "@/lib/api/myBlanks";
 import { can, canOrg } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import styles from "./BottomNav.module.scss";
+
+/** Mở hộp báo phôi, phiếu ngay tại chỗ, không đổi trang. */
+const REPORT_BLANKS: JumpTarget = { href: "#bao-phoi-phieu", label: "Báo phôi, phiếu còn lại", icon: "insurance" };
 
 type Entry =
   | { kind: "link"; href: string; label: string; icon: NavIconKey }
@@ -39,8 +45,10 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   const pathname = usePathname();
   const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [reportingBlanks, setReportingBlanks] = useState(false);
   const unread = useUnreadCount();
-  const createOptions = jumpCreateActions(user);
+  const { data: myBlanks, refetch: refetchMyBlanks } = useQuery({ queryKey: MY_BLANKS_KEY, queryFn: fetchMyBlanks });
+  const createOptions = [...jumpCreateActions(user), ...(hasOwnBlanks(myBlanks) ? [REPORT_BLANKS] : [])];
 
   const canSeeOverview =
     can(user, "insurance", "view-summary") ||
@@ -135,10 +143,14 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
           options={createOptions}
           onPick={(href) => {
             setPickerOpen(false);
-            router.push(href);
+            if (href === REPORT_BLANKS.href) void refetchMyBlanks().then(({ data }) => setReportingBlanks(hasOwnBlanks(data)));
+            else router.push(href);
           }}
         />
       </Dialog>
+      {reportingBlanks && hasOwnBlanks(myBlanks) && (
+        <MyBlanksDialog data={myBlanks} onClose={() => setReportingBlanks(false)} />
+      )}
     </>
   );
 }

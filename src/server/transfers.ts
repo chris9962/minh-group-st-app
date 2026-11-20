@@ -31,7 +31,7 @@ type Outcome<T> = { ok: true; value: T } | { ok: false; message: string } | null
  *
  * Đổi `created_by` trên hồ sơ và trên mọi bản ghi nghiệp vụ DO NGƯỜI TẠO CŨ
  * LẬP: điểm KPI ngân hàng đi theo người lập hồ sơ, còn phạm vi xem của màn danh
- * sách và phôi đã sử dụng đọc người tạo bản ghi. Đổi một nửa thì người nhận có
+ * sách đọc người tạo bản ghi. Đổi một nửa thì người nhận có
  * điểm mà không thấy tài khoản.
  *
  * Bản ghi người khác lập cho khách này giữ nguyên người lập: dịch vụ chốt

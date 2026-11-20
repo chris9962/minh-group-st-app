@@ -24,6 +24,55 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-20',
+    version: '2.33.0',
+    title: 'Cập nhật ngày 20/11/2026',
+    summary: 'Nhân viên tự báo số phôi, phiếu còn lại; chuyển phòng không còn chờ đơn bảo hiểm.',
+    sections: [
+      {
+        title: 'Phôi, phiếu còn lại',
+        items: [
+          'Tổng quan hiện số phôi và số phiếu còn lại.',
+          'Nhân viên tự báo số phôi, phiếu còn lại.',
+          'Nút + ở thanh dưới có mục Báo phôi, phiếu còn lại.',
+        ],
+      },
+      {
+        title: 'Phát phôi bảo hiểm',
+        items: [
+          'Bỏ đếm phôi theo đơn hoàn thành. Bỏ cột Đơn hoàn thành.',
+          'Cột Còn lại nhập được ở tháng hiện tại. Thêm cột Báo lúc.',
+          'Dòng Đã chuyển phòng nhập được số phôi phòng nhận lại.',
+        ],
+        visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
+      },
+      {
+        title: 'Phát phiếu thông tin ngân hàng',
+        items: [
+          'Bỏ đếm phiếu theo tài khoản. Bỏ cột Tài khoản đã mở.',
+          'Cột Còn lại nhập được ở tháng hiện tại. Thêm cột Báo lúc.',
+          'Dòng Đã chuyển phòng nhập được số phiếu phòng nhận lại.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'split-blanks'),
+      },
+      {
+        title: 'Nhân viên',
+        items: ['Chuyển phòng được cả khi người đó còn đơn bảo hiểm hay tài khoản ngân hàng đang làm.'],
+        visibleTo: (user) => can(user, 'staff', 'update'),
+      },
+      {
+        title: 'Bảo hiểm',
+        items: ['Chỉ người có quyền đặt trạng thái huỷ được đơn.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Xoá được tài khoản của người đã chuyển phòng.'],
+        visibleTo: (user) => can(user, 'banking', 'delete'),
+      },
+    ],
+  },
+  {
     id: '2026-11-19-2',
     version: '2.32.0',
     title: 'Cập nhật ngày 19/11/2026',

@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { clsx } from "clsx";
 import { Layers, Minus, Plus, Users } from "lucide-react";
 import { useState } from "react";
 import { BlankAdjustDialog } from "@/components/insurance/BlankAdjustDialog";
@@ -14,18 +15,28 @@ import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { fetchBankStaffBlanks, saveBankStaffBlanks, type BankStaffBlanks } from "@/lib/api/bankBlanks";
-import { departmentLeft } from "@/lib/api/insuranceBlanks";
+import {
+  fetchBankStaffBlanks,
+  saveBankStaffBlanks,
+  type BankStaffBlankCell,
+  type BankStaffBlanks,
+} from "@/lib/api/bankBlanks";
+import { departmentLeft, receivedOf, remainingOf } from "@/lib/api/insuranceBlanks";
+import { MY_BLANKS_KEY } from "@/lib/api/myBlanks";
+import { businessMonth, formatDateTime } from "@/lib/format";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 
-/** Màn Phát phiếu thông tin ngân hàng: Trưởng phòng, Phó phòng nhập số đã phát và đã sử dụng của từng người. */
+/** Màn Phát phiếu thông tin ngân hàng: Trưởng phòng, Phó phòng nhập số đã phát và số còn lại của từng người. */
 export function BankBlankSplitSection({ month }: { month: string }) {
   const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const queryKey = ["bank-blanks", "staff", month, departmentId];
   const query = useQuery({
-    queryKey: ["bank-blanks", "staff", month, departmentId],
+    queryKey,
     queryFn: () => fetchBankStaffBlanks(month, departmentId),
     placeholderData: keepPreviousData,
+    // Mỗi lần tải lại là dựng lại form, mất số Trưởng phòng đang gõ dở.
+    refetchOnWindowFocus: false,
   });
   if (query.isPending) return <SkeletonText lines={4} label="Đang tải phiếu của nhân viên" />;
   if (query.isError)
@@ -34,53 +45,92 @@ export function BankBlankSplitSection({ month }: { month: string }) {
     <SplitForm
       key={`${query.data.month}-${query.data.departmentId}-${query.dataUpdatedAt}`}
       data={query.data}
+      queryKey={queryKey}
       onDepartmentChange={setDepartmentId}
     />
   );
 }
 
+type Cell = BankStaffBlankCell & { userId: string; movedOut: boolean };
+
 const keyOf = (userId: string, bankId: string) => `${userId}:${bankId}`;
 
-function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepartmentChange: (id: string) => void }) {
+function SplitForm({
+  data,
+  queryKey,
+  onDepartmentChange,
+}: {
+  data: BankStaffBlanks;
+  queryKey: unknown[];
+  onDepartmentChange: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [bankId, setBankId] = useState(data.types[0]?.id ?? "");
-  const cells = data.rows.flatMap((r) => r.cells.map((c) => ({ userId: r.userId, ...c })));
+  const cells: Cell[] = data.rows.flatMap((r) => r.cells.map((c) => ({ userId: r.userId, movedOut: r.movedOut, ...c })));
   const initialIssued = Object.fromEntries(
     cells.map((c) => [keyOf(c.userId, c.blankTypeId), c.issued ? String(c.issued) : ""]),
   );
-  const initialUsed = Object.fromEntries(
-    cells.map((c) => [keyOf(c.userId, c.blankTypeId), c.used === null ? "" : String(c.used)]),
-  );
   const [issued, setIssued] = useState<Record<string, string>>(initialIssued);
-  const [used, setUsed] = useState<Record<string, string>>(initialUsed);
+  // Chỉ giữ ô Còn lại người dùng đã gõ; ô chưa gõ đi theo số đã phát đang nhập.
+  const [typedRemaining, setTypedRemaining] = useState<Record<string, string>>({});
   const [adjusting, setAdjusting] = useState<{ key: string; fullName: string; sign: 1 | -1; max?: number } | null>(
     null,
   );
 
   const issuedOf = (key: string) => Number(issued[key] || 0);
-  const usedInput = (key: string) => (used[key] ?? "") === "" ? null : Number(used[key]);
+  /** Ô Còn lại: dòng đã chuyển phòng là số phòng thực nhận lại, dòng khác là số người đó đang giữ. */
+  const remainingNow = (c: Cell) =>
+    c.movedOut ? c.returned : remainingOf({ ...c, issued: issuedOf(keyOf(c.userId, c.blankTypeId)) });
+  const remainingMax = (c: Cell) =>
+    c.movedOut ? c.opening + c.issued : receivedOf({ ...c, issued: issuedOf(keyOf(c.userId, c.blankTypeId)) });
+  /** null là giữ số đã báo: gõ lại đúng số đang hiện cũng không tính là báo. */
+  const remainingInput = (c: Cell): number | null => {
+    const typed = typedRemaining[keyOf(c.userId, c.blankTypeId)];
+    return typed === undefined || typed === String(remainingNow(c)) ? null : Number(typed);
+  };
   const form = {
     rows: cells.map((c) => {
       const key = keyOf(c.userId, c.blankTypeId);
-      return { userId: c.userId, blankTypeId: c.blankTypeId, issued: issuedOf(key), used: usedInput(key) };
+      return {
+        userId: c.userId,
+        blankTypeId: c.blankTypeId,
+        issued: issued[key] !== initialIssued[key] ? issuedOf(key) : null,
+        remaining: remainingInput(c),
+        reportedAt: c.reportedAt,
+      };
     }),
   };
   const changed = cells.some((c) => {
     const key = keyOf(c.userId, c.blankTypeId);
-    return issued[key] !== initialIssued[key] || used[key] !== initialUsed[key];
+    return issued[key] !== initialIssued[key] || remainingInput(c) !== null;
   });
+  const remainingBad = (c: Cell) => {
+    const typed = typedRemaining[keyOf(c.userId, c.blankTypeId)];
+    return typed !== undefined && (typed === "" || Number(typed) > remainingMax(c));
+  };
+  const remainingProblem = cells
+    .map((c) => {
+      if (!remainingBad(c)) return null;
+      const typed = typedRemaining[keyOf(c.userId, c.blankTypeId)];
+      const who = `${data.rows.find((r) => r.userId === c.userId)?.fullName}, ${data.types.find((t) => t.id === c.blankTypeId)?.code}`;
+      return typed === "" ? `${who}: nhập số còn lại` : `${who}: tối đa ${remainingMax(c)} phiếu`;
+    })
+    .find((problem) => problem !== null);
 
   const save = useMutation({
     mutationFn: () => saveBankStaffBlanks(data.month, data.departmentId, form),
     onSuccess: (next) => {
-      queryClient.setQueryData(["bank-blanks", "staff", data.month, data.departmentId], next);
+      queryClient.setQueryData(queryKey, next);
       queryClient.invalidateQueries({ queryKey: ["bank-blanks"] });
+      queryClient.invalidateQueries({ queryKey: MY_BLANKS_KEY });
       toast.ok(`Đã lưu phiếu ${monthLabel(data.month).toLowerCase()}`);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không lưu được phiếu.")),
   });
 
   const locked = !data.editable;
+  // Còn lại báo vào tháng trước thì phần đã dùng tính hai lần; máy chủ cũng chặn.
+  const reportable = !locked && data.month === businessMonth();
   const departmentName = data.departments.find((d) => d.id === data.departmentId)?.name ?? "";
   const issuedTotal = (id: string) => data.rows.reduce((s, r) => s + issuedOf(keyOf(r.userId, id)), 0);
   const leftOf = (id: string) => {
@@ -94,10 +144,8 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
   const bankCode = data.types.find((t) => t.id === bankId)?.code ?? "";
   const rows = hasBlanks
     ? data.rows.map((r) => {
-        const cell = r.cells.find((c) => c.blankTypeId === bankId)!;
-        const key = keyOf(r.userId, bankId);
-        const usedNow = usedInput(key) ?? cell.usedAccounts;
-        return { ...r, cell, key, rowLocked: locked || r.movedOut, closing: cell.opening + issuedOf(key) - usedNow - cell.returned };
+        const cell = cells.find((c) => c.userId === r.userId && c.blankTypeId === bankId)!;
+        return { ...r, cell, key: keyOf(r.userId, bankId), rowLocked: locked || r.movedOut };
       })
     : [];
   const showGivenBack = rows.some((r) => r.cell.returned > 0);
@@ -168,6 +216,11 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
           <p className={left < 0 ? styles.danger : styles.mixLine} aria-live="polite">
             {left < 0 ? `⚠ Phát vượt ${-left} phiếu so với số phòng có` : `Còn tại phòng: ${left}`}
           </p>
+          {remainingProblem && (
+            <p className={styles.danger} role="alert">
+              ⚠ {remainingProblem}
+            </p>
+          )}
           <div className={styles.scroll}>
             <table className={`table ${styles.table}`}>
               <thead>
@@ -175,10 +228,9 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                   <th scope="col">Người</th>
                   <th scope="col">Tồn tháng trước</th>
                   <th scope="col">Đã phát</th>
-                  <th scope="col">Đã sử dụng</th>
-                  <th scope="col">Tài khoản đã mở</th>
                   {showGivenBack && <th scope="col">Trả lại</th>}
                   <th scope="col">Còn lại</th>
+                  <th scope="col">Báo lúc</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,27 +280,32 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                         )}
                       </div>
                     </td>
+                    {showGivenBack && <td className={styles.number}>{r.cell.returned}</td>}
                     <td>
                       <input
-                        className={`input ${styles.cellInput}`}
+                        className={clsx("input", styles.cellInput, remainingBad(r.cell) && styles.cellInvalid)}
                         inputMode="numeric"
-                        aria-label={`${r.fullName}: số phiếu đã sử dụng, để trống thì dùng số tài khoản đã mở`}
-                        placeholder={String(r.cell.usedAccounts)}
-                        value={used[r.key] ?? ""}
-                        disabled={r.rowLocked}
-                        onChange={(e) =>
-                          setUsed((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
-                        }
+                        aria-label={r.movedOut ? `${r.fullName}: số phiếu phòng nhận lại` : `${r.fullName}: số phiếu còn lại`}
+                        aria-invalid={remainingBad(r.cell) || undefined}
+                        value={typedRemaining[r.key] ?? String(remainingNow(r.cell))}
+                        disabled={!reportable}
+                        onChange={(e) => {
+                          const value = digitsOnly(e.target.value).slice(0, 9);
+                          // Gõ đúng số đang tính thì bỏ ô gõ, để ô còn đi theo số đã phát.
+                          setTypedRemaining((prev) => {
+                            const next = { ...prev, [r.key]: value };
+                            if (value === String(remainingNow(r.cell))) delete next[r.key];
+                            return next;
+                          });
+                        }}
                       />
                     </td>
-                    <td className={styles.number}>{r.cell.usedAccounts}</td>
-                    {showGivenBack && <td className={styles.number}>{r.cell.returned}</td>}
-                    <td className={styles.number}>{r.closing}</td>
+                    <td className="tabular-nums">{r.cell.reportedAt ? formatDateTime(r.cell.reportedAt) : ""}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-muted">
+                    <td colSpan={showGivenBack ? 6 : 5} className="text-muted">
                       Phòng chưa có ai trong {monthLabel(data.month).toLowerCase()}.
                     </td>
                   </tr>
@@ -261,7 +318,7 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
 
       {!locked && hasBlanks && (
         <div className={styles.saveBar}>
-          <Button disabled={!changed || overIssued || save.isPending} onClick={() => save.mutate()}>
+          <Button disabled={!changed || overIssued || !!remainingProblem || save.isPending} onClick={() => save.mutate()}>
             Lưu
           </Button>
         </div>

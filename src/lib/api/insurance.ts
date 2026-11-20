@@ -452,8 +452,7 @@ export async function overrideInsuranceOrderStatus(
 
 /**
  * Huỷ đơn — đơn sang `cancelled` và Ở LẠI trong kho, kèm lý do trên dòng thời
- * gian. Người có `insurance:set-status` huỷ được mọi đơn; người tạo cũng huỷ
- * được đơn `Hoàn thành` của chính mình.
+ * gian. Chỉ người có `insurance:set-status` huỷ được (chủ dự án chốt 2026-11-20).
  *
  * Khác `deleteInsuranceOrder`: đường kia xoá hẳn dòng đơn lẫn dòng thời gian
  * của nó, không tra lại được ai huỷ và vì sao.

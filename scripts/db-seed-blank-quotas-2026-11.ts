@@ -20,7 +20,7 @@ import {
  * Ghi thật, dòng đã có thì ghi đè số:
  *   bun run db:seed-blank-quotas-2026-11 -- --apply
  *
- * Chạy sau `db:migrate` và sau khi dọn bảng; không phụ thuộc `db:recount-blanks`.
+ * Chạy sau `db:migrate` và sau khi dọn bảng.
  */
 
 const INSURANCE_MONTH = "2026-11";
