@@ -27,48 +27,138 @@ export const RELEASES: Release[] = [
     id: '2026-11-20',
     version: '2.33.0',
     title: 'Cập nhật ngày 20/11/2026',
-    summary: 'Nhân viên tự báo số phôi, phiếu còn lại; chuyển phòng không còn chờ đơn bảo hiểm.',
+    summary: 'Nhân viên tự đếm và báo số phôi, phiếu còn lại ở màn Tổng quan.',
     sections: [
       {
-        title: 'Phôi, phiếu còn lại',
+        title: 'Báo phôi, phiếu còn lại',
         items: [
-          'Tổng quan hiện số phôi và số phiếu còn lại.',
-          'Nhân viên tự báo số phôi, phiếu còn lại.',
-          'Nút + ở thanh dưới có mục Báo phôi, phiếu còn lại.',
+          'App không tự trừ phôi, phiếu khi bạn lập đơn bảo hiểm hay mở tài khoản.',
+          'Bạn tự đếm và báo số phôi, phiếu còn lại.',
+          'Màn Tổng quan hiện số phôi, phiếu còn lại app đang tính, khi Trưởng phòng đã phát cho bạn.',
+          'Số này chỉ đổi khi bạn báo.',
+        ],
+        steps: [
+          {
+            text: 'Ở màn Tổng quan, nhân viên bấm dòng "Phôi còn lại | Phiếu còn lại".',
+            shot: {
+              src: '/api/images/releases/2026-11-20/9f1943e6-bf5d-4197-b5bb-b986311d3bf1.webp',
+              alt: 'Màn Tổng quan của nhân viên trên điện thoại, dòng Phôi còn lại 41, Phiếu còn lại 38',
+              width: 780,
+              height: 1688,
+              markers: [{ n: 1, x: 75.8, y: 19.1, label: 'Số app đang tính.' }],
+            },
+          },
+          {
+            text: 'Cạnh tên mỗi loại là số app đang tính. Nhân viên đếm phôi, phiếu đang cầm.',
+            shot: {
+              src: '/api/images/releases/2026-11-20/17132db6-c26a-4172-9dc8-c7b55f045dfd.webp',
+              alt: 'Form Báo phôi, phiếu còn lại, mỗi loại phôi và mỗi ngân hàng có số Còn lại và một ô nhập trống',
+              width: 780,
+              height: 1688,
+              markers: [
+                { n: 1, x: 47.4, y: 27.8, label: 'Số app đang tính.' },
+                { n: 2, x: 85.1, y: 31.9, label: 'Nhập số phôi đếm được.' },
+              ],
+            },
+          },
+          {
+            text: 'Loại nào số đếm khác số đang hiện thì nhập số mới. Loại khớp thì để trống. Nhân viên bấm "Lưu".',
+            shot: {
+              src: '/api/images/releases/2026-11-20/aee9e4a4-14d4-4cce-8f5f-c9d66212a59d.webp',
+              alt: 'Form đã nhập 12 ở BH xe máy và 15 ở MB, các ô khác để trống',
+              width: 780,
+              height: 1688,
+              markers: [
+                { n: 1, x: 85.1, y: 31.9, label: 'Số đếm được khác số đang hiện thì nhập số mới.' },
+                { n: 2, x: 85.1, y: 40.8, label: 'Số đếm được khớp thì để trống.' },
+                { n: 3, x: 90.8, y: 75.3, label: 'Bấm Lưu.' },
+              ],
+            },
+          },
+          {
+            text: 'Dòng số ở Tổng quan đổi theo số vừa báo.',
+            shot: {
+              src: '/api/images/releases/2026-11-20/b40aa36e-7688-4ba9-97c0-0cbcba54249d.webp',
+              alt: 'Màn Tổng quan sau khi báo, dòng Phôi còn lại 38, Phiếu còn lại 35',
+              width: 780,
+              height: 1688,
+              markers: [{ n: 1, x: 75.8, y: 19.1, label: 'Số mới sau khi báo.' }],
+            },
+          },
+          {
+            text: 'Số nhập lớn hơn số đã nhận thì ô báo "Tối đa". Nhân viên đếm lại. Đếm đúng mà vẫn lớn hơn thì nhân viên báo Trưởng phòng nhập thêm Đã phát.',
+            shot: {
+              src: '/api/images/releases/2026-11-20/37597e8f-6e51-4222-b3dd-15aa3e614897.webp',
+              alt: 'Ô BH xe máy nhập 99, dưới ô có chữ Tối đa 36',
+              width: 780,
+              height: 1688,
+              markers: [{ n: 1, x: 29, y: 34.3, label: 'Tối đa là tổng số đã nhận, gồm số còn từ tháng trước và số Trưởng phòng phát trong tháng.' }],
+            },
+          },
+          {
+            text: 'Nhân viên cũng mở được form này ở nút Tạo mới, mục "Báo phôi, phiếu còn lại".',
+            shot: {
+              src: '/api/images/releases/2026-11-20/77253fe4-9b89-4b04-b71c-bc0b74df2272.webp',
+              alt: 'Bảng Tạo mới ở thanh dưới, có mục Báo phôi, phiếu còn lại',
+              width: 780,
+              height: 1688,
+              markers: [{ n: 1, x: 89.2, y: 87.7, label: 'Mở cùng form báo số.' }],
+            },
+          },
         ],
       },
       {
         title: 'Phát phôi bảo hiểm',
         items: [
-          'Bỏ đếm phôi theo đơn hoàn thành. Bỏ cột Đơn hoàn thành.',
+          'Phôi không tự trừ theo đơn hoàn thành. Bỏ cột Đơn hoàn thành.',
+          'Trưởng phòng phải nhập Đã phát thì nhân viên mới báo được số còn lại.',
+          'Đã phát là tổng số phát trong tháng. Phát thêm thì Trưởng phòng tăng số này.',
           'Cột Còn lại nhập được ở tháng hiện tại. Thêm cột Báo lúc.',
-          'Dòng Đã chuyển phòng nhập được số phôi phòng nhận lại.',
+          'Người có nhãn Đã chuyển phòng: ô Còn lại là số phôi người đó trả lại phòng. Số này cộng vào Còn tại phòng.',
+        ],
+        steps: [
+          {
+            text: 'Trưởng phòng nhập Đã phát cho từng người rồi bấm "Lưu".',
+            shot: {
+              src: '/api/images/releases/2026-11-20/85a6f0df-70f1-419b-8a62-af31559ba299.webp',
+              alt: 'Màn Phát phôi bảo hiểm trên điện thoại, bảng Phôi của từng người với cột Đã phát',
+              width: 780,
+              height: 1688,
+              markers: [{ n: 1, x: 77.7, y: 72.1, label: 'Nhập Đã phát cho từng người.' }],
+            },
+          },
+          {
+            text: 'Trưởng phòng kéo bảng sang trái, thấy cột Còn lại và Báo lúc. Nhân viên báo sai thì Trưởng phòng sửa ô Còn lại rồi bấm "Lưu".',
+            shot: {
+              src: '/api/images/releases/2026-11-20/cbf0a371-b284-4b16-bf02-5fe880e2c7ab.webp',
+              alt: 'Bảng Phôi của từng người đã kéo sang trái, hiện cột Còn lại và Báo lúc, có dòng Đã chuyển phòng',
+              width: 780,
+              height: 1688,
+              markers: [
+                { n: 1, x: 67.1, y: 79.5, label: 'Số app đang tính cho người đó. Trưởng phòng sửa được.' },
+                { n: 2, x: 71.6, y: 44.7, label: 'Cột Báo lúc: giờ báo số gần nhất.' },
+                { n: 3, x: 67.1, y: 62.4, label: 'Người đã chuyển phòng: số phôi người đó trả lại phòng.' },
+              ],
+            },
+          },
         ],
         visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
       },
       {
         title: 'Phát phiếu thông tin ngân hàng',
         items: [
-          'Bỏ đếm phiếu theo tài khoản. Bỏ cột Tài khoản đã mở.',
+          'Phiếu không tự trừ theo tài khoản mở. Bỏ cột Tài khoản đã mở.',
+          'Trưởng phòng phải nhập Đã phát thì nhân viên mới báo được số còn lại.',
+          'Đã phát là tổng số phát trong tháng. Phát thêm thì Trưởng phòng tăng số này.',
           'Cột Còn lại nhập được ở tháng hiện tại. Thêm cột Báo lúc.',
-          'Dòng Đã chuyển phòng nhập được số phiếu phòng nhận lại.',
+          'Người có nhãn Đã chuyển phòng: ô Còn lại là số phiếu người đó trả lại phòng. Số này cộng vào Còn tại phòng.',
         ],
         visibleTo: (user) => can(user, 'banking', 'split-blanks'),
       },
       {
-        title: 'Nhân viên',
-        items: ['Chuyển phòng được cả khi người đó còn đơn bảo hiểm hay tài khoản ngân hàng đang làm.'],
-        visibleTo: (user) => can(user, 'staff', 'update'),
-      },
-      {
-        title: 'Bảo hiểm',
-        items: ['Chỉ người có quyền đặt trạng thái huỷ được đơn.'],
-        visibleTo: (user) => canOpenPath(user, '/insurance'),
-      },
-      {
         title: 'Ngân hàng',
-        items: ['Xoá được tài khoản của người đã chuyển phòng.'],
-        visibleTo: (user) => can(user, 'banking', 'delete'),
+        items: ['Ô tìm khách tìm được theo mã đơn hàng.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
       },
     ],
   },
