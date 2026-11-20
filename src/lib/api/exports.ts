@@ -480,7 +480,9 @@ export const SalaryExportRow = z.object({
   deduction: z.number(),
   deductionReason: z.string(),
   advance: z.number(),
-  /** Lương cuối cùng = `pointsSalary` + `bonus` - `deduction` - `advance`. */
+  /** Lương ăn ca đã chi riêng ở trang Lương ăn ca. */
+  meal: z.number(),
+  /** Lương cuối cùng = `pointsSalary` + `bonus` - `deduction` - `advance` - `meal`. */
   salary: z.number(),
   bankAccountNumber: z.string(),
   bankName: z.string(),

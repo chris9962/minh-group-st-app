@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-export const SalaryAdjustmentKind = z.enum(['advance', 'bonus', 'deduction']);
+export const SalaryAdjustmentKind = z.enum(['advance', 'bonus', 'deduction', 'meal']);
 export type SalaryAdjustmentKind = z.infer<typeof SalaryAdjustmentKind>;
 
 export const SALARY_ADJUSTMENT_LABEL: Record<SalaryAdjustmentKind, string> = {
   advance: 'Lương ứng trước',
   bonus: 'Lương thưởng',
   deduction: 'Lương trừ',
+  meal: 'Lương ăn ca',
 };
 
 /** Nhãn nút thêm một lần ghi, theo loại. */
@@ -14,6 +15,7 @@ export const SALARY_ADJUSTMENT_ADD_LABEL: Record<SalaryAdjustmentKind, string> =
   advance: 'Ứng lương',
   bonus: 'Thưởng',
   deduction: 'Trừ lương',
+  meal: 'Chi ăn ca',
 };
 
 export const SalaryAdjustment = z.object({
@@ -25,21 +27,21 @@ export const SalaryAdjustment = z.object({
   /** Ngày ghi, YYYY-MM-DD theo giờ Việt Nam. */
   date: z.string(),
   createdByName: z.string(),
-  /** Khoản ứng trước sinh ra từ yêu cầu tạm ứng đã chi: không xoá được. Bản chụp chốt trước 2026-11-01 không có trường này. */
+  /** Khoản sinh ra từ yêu cầu tạm ứng hoặc dòng ăn ca đã chi: không xoá được. Bản chụp chốt trước 2026-11-01 không có trường này. */
   linked: z.boolean().optional(),
 });
 export type SalaryAdjustment = z.infer<typeof SalaryAdjustment>;
 
 export const adjustmentTotals = (list: SalaryAdjustment[]): Record<SalaryAdjustmentKind, number> => {
-  const totals = { advance: 0, bonus: 0, deduction: 0 };
+  const totals = { advance: 0, bonus: 0, deduction: 0, meal: 0 };
   for (const r of list) totals[r.kind] += r.amount;
   return totals;
 };
 
-/** Lương cuối cùng: lương theo điểm + thưởng - trừ - ứng trước. */
+/** Lương cuối cùng: lương theo điểm + thưởng - trừ - ứng trước - ăn ca đã chi riêng. */
 export const finalSalaryOf = (salary: number, list: SalaryAdjustment[]): number => {
   const totals = adjustmentTotals(list);
-  return salary + totals.bonus - totals.deduction - totals.advance;
+  return salary + totals.bonus - totals.deduction - totals.advance - totals.meal;
 };
 
 export const SalaryAdjustmentForm = z.object({

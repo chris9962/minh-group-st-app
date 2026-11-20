@@ -5,6 +5,7 @@ import type {
   DeputyDirectorSalaryInput,
   FixedSalaryInput,
   ManagerSalaryInput,
+  MealFormula,
   QuotaProgress,
   SalaryItem,
   SalaryResult,
@@ -36,6 +37,10 @@ import type {
  *   cộng 4, thiếu trừ 10; tài khoản tự mở cộng 0,2 điểm × 70.000đ. File CASA
  *   tháng M tính vào lương tháng M+1 (chốt 2026-11-09).
  *   Chỉ tiêu CASA của phòng lấy của tháng M, cùng tháng với file (chốt 2026-11-17).
+ *
+ * - Ăn ca = số ngày × 120.000đ, không phụ thuộc khoản khác: phép cắt về 0 chỉ
+ *   áp cho các khoản khác (chốt 2026-11-20). Số ngày lấy từ màn Lương ăn ca khi
+ *   dòng ăn ca đã có người sửa hoặc đã khoá số.
  */
 
 const DAILY_SUPPORT = 120_000;
@@ -52,6 +57,31 @@ export const staffQuotaNeedsDepartmentQuota = true;
 
 const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
 const total = (items: SalaryItem[]) => items.reduce((sum, item) => sum + item.amount, 0);
+
+export const mealRate = DAILY_SUPPORT;
+
+export function mealMaxDays(formula: MealFormula, maxWorkDays: number | null): number {
+  if (formula === "deputy-director") return DEPUTY_DIRECTOR_DAYS;
+  if (maxWorkDays !== null) return maxWorkDays;
+  const caps = { staff: MAX_DAYS, atm: ATM_MAX_DAYS, social: SOCIAL_MAX_DAYS, fixed: FIXED_MAX_DAYS, manager: MAX_DAYS };
+  return caps[formula];
+}
+
+/** Số ngày ở màn Lương ăn ca đã qua người duyệt nên dùng nguyên; không có thì lấy ngày công cắt trần. */
+function mealOf(formula: MealFormula, workDays: number, maxWorkDays: number | null | undefined, mealDays: number | null | undefined) {
+  const maxDays = mealMaxDays(formula, maxWorkDays ?? null);
+  const appDays = Math.min(workDays, maxDays);
+  const days = mealDays ?? appDays;
+  const item: SalaryItem = {
+    label: "Hỗ trợ ăn ca",
+    formula: `${formatPoints(days)} ngày × 120.000đ`,
+    amount: days * DAILY_SUPPORT,
+  };
+  return { days, item, meal: { appDays, maxDays } };
+}
+
+const amountWithMeal = (others: SalaryItem[], meal: SalaryItem) =>
+  Math.max(0, Math.round(total(others))) + Math.round(meal.amount);
 
 /** Phần trăm còn thiếu, 2 số lẻ. Đạt từ chỉ tiêu trở lên là 0. */
 const shortfallPercent = ({ target, achieved }: QuotaProgress): number =>
@@ -98,14 +128,14 @@ function quotaResult(
  *
  * Không chấm chỉ tiêu định hướng: thông báo không có mục đó.
  */
-function atmStaff({ points, workDays, bonusCombos = 0, maxWorkDays }: StaffSalaryInput): SalaryResult {
+function atmStaff({ points, workDays, bonusCombos = 0, maxWorkDays, mealDays }: StaffSalaryInput): SalaryResult {
   const direct = roundPoints(points);
-  const days = Math.min(workDays, maxWorkDays ?? ATM_MAX_DAYS);
+  const { days, item: mealItem, meal } = mealOf("atm", workDays, maxWorkDays, mealDays);
   const tier1 = Math.min(Math.max(direct, 0), 100);
   const tier2 = Math.min(Math.max(direct - 100, 0), 30);
   const tier3 = Math.min(Math.max(direct - 130, 0), 30);
   const tier4 = Math.max(direct - 160, 0);
-  const items: SalaryItem[] = [
+  const others: SalaryItem[] = [
     { label: "Lương tiêu chuẩn", formula: `${formatPoints(tier1)} điểm × 50.000đ`, amount: tier1 * 50_000 },
     { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
     { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
@@ -115,16 +145,15 @@ function atmStaff({ points, workDays, bonusCombos = 0, maxWorkDays }: StaffSalar
       formula: `${bonusCombos} combo × 50.000đ`,
       amount: bonusCombos * ATM_COMBO_BONUS,
     },
-    // Từ tháng 2026-10 nhân viên Điểm ATM có nửa ngày công: "12,5 ngày", không phải "12.5 ngày".
-    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
   ];
   return {
-    amount: Math.max(0, Math.round(total(items))),
+    amount: amountWithMeal(others, mealItem),
     facts: [
       { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
       { label: "Ngày công", value: `${formatPoints(days)} ngày` },
     ],
-    items,
+    items: [...others, mealItem],
+    meal,
   };
 }
 
@@ -134,29 +163,25 @@ export function staff(input: StaffSalaryInput): SalaryResult {
   const casaPoints = roundPoints(casaAccounts * CASA_POINTS);
   const direct = roundPoints(points + casaPoints);
   const social = input.scheme === "social";
-  const days = Math.min(workDays, input.maxWorkDays ?? (social ? SOCIAL_MAX_DAYS : MAX_DAYS));
+  const { days, item, meal } = mealOf(social ? "social" : "staff", workDays, input.maxWorkDays, input.mealDays);
+  // An Sinh không có dòng "Ngày công" ở dưới: số ngày nằm ở dòng ăn ca, kể cả khi 0đ.
+  const mealItem: SalaryItem = { ...item, keepAtZero: social };
   const tier1 = Math.min(Math.max(direct, 0), 100);
   const tier2 = Math.min(Math.max(direct - 100, 0), 30);
   const tier3 = Math.min(Math.max(direct - 130, 0), 30);
   const tier4 = Math.max(direct - 160, 0);
-  const items: SalaryItem[] = [
+  const others: SalaryItem[] = [
     { label: "Lương tiêu chuẩn", formula: `${formatPoints(tier1)} điểm × 60.000đ`, amount: tier1 * 60_000 },
     { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
     { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
     { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
-    {
-      label: "Hỗ trợ ăn ca",
-      formula: `${formatPoints(days)} ngày × 120.000đ`,
-      amount: days * DAILY_SUPPORT,
-      // An Sinh không có dòng "Ngày công" ở trên: số ngày nằm ở dòng này, kể cả khi 0đ.
-      keepAtZero: social,
-    },
   ];
   const groups = input.socialInsurance ?? [];
   const groupPoints = roundPoints(groups.reduce((sum, group) => sum + group.points, 0));
   const otherPoints = roundPoints(points - groupPoints);
   return {
-    amount: Math.max(0, Math.round(total(items))),
+    amount: amountWithMeal(others, mealItem),
+    meal,
     // Điểm KPI thành hàng tổng của bảng tiền thu, nên không nhắc lại ở phần thông tin.
     revenue: social
       ? {
@@ -181,7 +206,7 @@ export function staff(input: StaffSalaryInput): SalaryResult {
         : []),
       ...(social ? [] : [{ label: "Ngày công", value: `${formatPoints(days)} ngày` }]),
     ],
-    items,
+    items: [...others, mealItem],
   };
 }
 
@@ -189,18 +214,18 @@ export function staff(input: StaffSalaryInput): SalaryResult {
  * Lương cứng (spec mục 5.2): nguyên số tiền trên hồ sơ của tháng, cộng ăn ca
  * theo ngày công của chính người đó. Điểm KPI không đổi lương.
  */
-export function fixed({ amount, workDays, maxWorkDays }: FixedSalaryInput): SalaryResult {
-  const days = Math.min(workDays, maxWorkDays ?? FIXED_MAX_DAYS);
-  const items: SalaryItem[] = [
+export function fixed({ amount, workDays, maxWorkDays, mealDays }: FixedSalaryInput): SalaryResult {
+  const { days, item: mealItem, meal } = mealOf("fixed", workDays, maxWorkDays, mealDays);
+  const others: SalaryItem[] = [
     amount === null
       ? { label: FIXED_SALARY_ITEM, formula: "Chưa nhập số tiền", amount: 0, keepAtZero: true }
       : { label: FIXED_SALARY_ITEM, formula: "Nguyên tháng", amount },
-    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
   ];
   return {
-    amount: Math.max(0, Math.round(total(items))),
+    amount: amountWithMeal(others, mealItem),
     facts: [{ label: "Ngày công", value: `${formatPoints(days)} ngày` }],
-    items,
+    items: [...others, mealItem],
+    meal,
   };
 }
 
@@ -270,6 +295,7 @@ export function manager({
   departmentQuota,
   casaAccounts = 0,
   maxWorkDays,
+  mealDays,
 }: ManagerSalaryInput): SalaryResult {
   const direct = roundPoints(points);
   const reached = teamPoints.filter((p) => p >= 100).length;
@@ -279,9 +305,9 @@ export function manager({
     teamPoints.length === 0 ? 0 : teamPoints.reduce((sum, p) => sum + p, 0) / teamPoints.length;
   const overTargetStaff = teamPoints.filter((p) => p > 100).length;
   const poolShare = role === "head" ? 0.7 : 0.3;
-  const days = Math.min(workDays, maxWorkDays ?? MAX_DAYS);
+  const { days, item: mealItem, meal } = mealOf("manager", workDays, maxWorkDays, mealDays);
   const rate = role === "head" ? 120_000 : 80_000;
-  const items: SalaryItem[] = [
+  const others: SalaryItem[] = [
     {
       label: "Nhân viên đạt 100 điểm",
       formula: `${reached} người × ${unit} điểm × ${vnd(rate)}`,
@@ -314,17 +340,17 @@ export function manager({
       formula: `Trung bình ${formatPoints(roundPoints(average))} điểm của ${teamPoints.length} nhân viên - ${overTargetStaff} người vượt 100 điểm - ${role === "head" ? "70%" : "30%"} quỹ`,
       amount: departmentPool(average, overTargetStaff) * poolShare,
     },
-    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
   ];
   return {
-    amount: Math.max(0, Math.round(total(items))),
+    amount: amountWithMeal(others, mealItem),
     facts: [
       { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
       { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
       { label: "Nhân viên trong phòng", value: `${teamPoints.length} người` },
       { label: "Ngày công", value: `${formatPoints(days)} ngày` },
     ],
-    items,
+    items: [...others, mealItem],
+    meal,
   };
 }
 
@@ -332,6 +358,7 @@ export function deputyDirector({
   members,
   branchPoints,
   departmentQuotas = [],
+  mealDays,
 }: DeputyDirectorSalaryInput): SalaryResult {
   const quotaItemsOfBranch = [
     ...branchQuotaItem(
@@ -352,16 +379,15 @@ export function deputyDirector({
   const tier1 = roundPoints(Math.min(Math.max(branchPoints, 0), 10_000));
   const tier2 = roundPoints(Math.min(Math.max(branchPoints - 10_000, 0), 5_000));
   const tier3 = roundPoints(Math.max(branchPoints - 15_000, 0));
-  const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
+  const { days, item: mealItem, meal } = mealOf("deputy-director", DEPUTY_DIRECTOR_DAYS, null, mealDays);
   return {
-    amount: Math.max(
-      0,
-      Math.round(managementPay + branchBonus + dailySupport + total(quotaItemsOfBranch)),
-    ),
+    amount:
+      Math.max(0, Math.round(managementPay + branchBonus + total(quotaItemsOfBranch))) + Math.round(mealItem.amount),
+    meal,
     facts: [
       { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
       { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(branchPoints))} điểm` },
-      { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
+      { label: "Ngày công", value: `${formatPoints(days)} ngày` },
     ],
     items: [
       {
@@ -373,11 +399,7 @@ export function deputyDirector({
       { label: "Thưởng nhánh mốc 1", formula: `${formatPoints(tier1)} điểm × 2.000đ`, amount: tier1 * 2_000 },
       { label: "Thưởng nhánh mốc 2", formula: `${formatPoints(tier2)} điểm × 3.000đ`, amount: tier2 * 3_000 },
       { label: "Thưởng nhánh mốc 3", formula: `${formatPoints(tier3)} điểm × 4.000đ`, amount: tier3 * 4_000 },
-      {
-        label: "Hỗ trợ ăn ca",
-        formula: `${DEPUTY_DIRECTOR_DAYS} ngày × 120.000đ`,
-        amount: dailySupport,
-      },
+      mealItem,
     ],
   };
 }

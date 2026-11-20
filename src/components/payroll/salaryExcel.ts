@@ -44,6 +44,7 @@ export function salaryExportColumns(): SalaryExportColumn[] {
     { key: "deduction", header: "LƯƠNG TRỪ", ...LUONG, type: "number", width: 13, defaultOn: true, sample: ["0", "200000"], total: sum((r) => r.deduction), value: (r: SalaryExportRow) => r.deduction },
     { key: "deductionReason", header: "LÝ DO TRỪ LƯƠNG", ...LUONG, width: 30, defaultOn: true, sample: ["", "đi trễ"], value: (r: SalaryExportRow) => r.deductionReason },
     { key: "advance", header: "LƯƠNG ỨNG TRƯỚC", ...LUONG, type: "number", width: 15, defaultOn: true, sample: ["2000000", "0"], total: sum((r) => r.advance), value: (r: SalaryExportRow) => r.advance },
+    { key: "meal", header: "LƯƠNG ĂN CA", ...LUONG, type: "number", width: 14, defaultOn: true, sample: ["3120000", "0"], total: sum((r) => r.meal), value: (r: SalaryExportRow) => r.meal },
     { key: "salary", header: "LƯƠNG CUỐI CÙNG", ...LUONG, type: "number", width: 15, defaultOn: true, sample: ["7512000", "6760000"], total: sum((r) => r.salary), value: (r: SalaryExportRow) => r.salary },
     { key: "bankAccountNumber", header: "SỐ TÀI KHOẢN", ...TAI_KHOAN, type: "text", width: 18, defaultOn: true, sample: ["10001234567", "0123456789"], value: (r: SalaryExportRow) => r.bankAccountNumber },
     { key: "bankName", header: "NGÂN HÀNG NHẬN", ...TAI_KHOAN, width: 16, defaultOn: true, sample: ["TPBank", "VPBank"], value: (r: SalaryExportRow) => r.bankName },

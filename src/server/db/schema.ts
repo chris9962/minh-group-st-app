@@ -103,6 +103,10 @@ export const actionKey = pgEnum("action_key", [
   "pay-advance",
   // đặc biệt · customer: đổi người tạo hồ sơ khách sang nhân viên cùng phòng (migration 0178)
   "change-owner",
+  // đặc biệt · salary: Trưởng phòng sửa và duyệt lương ăn ca của phòng (migration 0184)
+  "approve-meal",
+  // đặc biệt · salary: bước kế toán của lương ăn ca (migration 0184)
+  "pay-meal",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -2834,7 +2838,7 @@ export const kpiAdjustments = pgTable(
   ],
 );
 
-export const salaryAdjustmentKind = pgEnum("salary_adjustment_kind", ["advance", "bonus", "deduction"]);
+export const salaryAdjustmentKind = pgEnum("salary_adjustment_kind", ["advance", "bonus", "deduction", "meal"]);
 
 /**
  * Ứng lương, thưởng và trừ lương của một người trong tháng (migration 0157, chốt
@@ -2937,6 +2941,82 @@ export const salaryAdvanceEvents = pgTable(
   (t) => [index("salary_advance_events_request").on(t.requestId, t.createdAt)],
 );
 
+export const mealAllowanceStatus = pgEnum("meal_allowance_status", [
+  "pending",
+  "head-approved",
+  "forwarded",
+  "approved",
+  "rejected",
+  "processing",
+  "paid",
+]);
+
+/**
+ * Lương ăn ca, mỗi người một dòng mỗi tháng (migration 0184, chốt 2026-11-20).
+ * App lập dòng, không ai gửi. Luồng và mốc giờ ở `server/mealAllowances.ts`. Lúc
+ * kế toán bấm Đã chi ăn ca, app ghi một dòng `meal` vào `salary_adjustments` của
+ * đúng tháng `year_month` và giữ id ở `adjustment_id`.
+ */
+export const mealAllowanceRows = pgTable(
+  "meal_allowance_rows",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    yearMonth: text("year_month").notNull(),
+    /** Phòng của tháng `year_month`; Trưởng phòng của phòng này duyệt. NULL = không thuộc phòng nào, đi thẳng tới kế toán. */
+    departmentId: uuid("department_id").references(() => departments.id),
+    /** Số ngày Trưởng phòng hoặc kế toán nhập tay. NULL = chưa ai sửa, dùng số app tính. */
+    editedDays: numeric("edited_days", { precision: 3, scale: 1, mode: "number" }),
+    /** Số ngày dùng để chi, ghi lúc kế toán bấm Chuyển Đang xử lý. Lương tháng dùng số này, không cắt trần lại. */
+    lockedDays: numeric("locked_days", { precision: 3, scale: 1, mode: "number" }),
+    status: mealAllowanceStatus("status").notNull().default("pending"),
+    rejectReason: text("reject_reason").notNull().default(""),
+    // RESTRICT: khoản ăn ca đã chi mà bị xoá thì lương tháng trả ăn ca lần thứ hai.
+    adjustmentId: uuid("adjustment_id").references(() => salaryAdjustments.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("meal_allowance_rows_user_month").on(t.userId, t.yearMonth),
+    index("meal_allowance_rows_month_status").on(t.yearMonth, t.status),
+    index("meal_allowance_rows_month_department").on(t.yearMonth, t.departmentId),
+    index("meal_allowance_rows_adjustment").on(t.adjustmentId),
+    check("meal_allowance_rows_edited_days", sql`edited_days >= 0 and edited_days * 2 = round(edited_days * 2)`),
+    check("meal_allowance_rows_locked_days", sql`locked_days >= 0 and locked_days * 2 = round(locked_days * 2)`),
+  ],
+);
+
+export const mealAllowanceEventKind = pgEnum("meal_allowance_event_kind", [
+  "create",
+  "edit",
+  "head-approve",
+  "forward",
+  "approve",
+  "reject",
+  "processing",
+  "paid",
+]);
+
+/** Lịch sử của dòng ăn ca: mỗi lần đổi số ngày hoặc trạng thái một dòng. `actor_id` NULL = app tự làm. */
+export const mealAllowanceEvents = pgTable(
+  "meal_allowance_events",
+  {
+    id: id(),
+    rowId: uuid("row_id")
+      .notNull()
+      .references(() => mealAllowanceRows.id, { onDelete: "cascade" }),
+    kind: mealAllowanceEventKind("kind").notNull(),
+    actorId: uuid("actor_id").references(() => users.id),
+    fromDays: numeric("from_days", { precision: 3, scale: 1, mode: "number" }),
+    toDays: numeric("to_days", { precision: 3, scale: 1, mode: "number" }),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("meal_allowance_events_row").on(t.rowId, t.createdAt)],
+);
+
 /**
  * Nhân viên không tính vào điểm phòng của một tháng (migration 0143, chốt
  * 2026-10-18), quyền `staff:exclude-department-points`.
@@ -3011,7 +3091,7 @@ export const salarySnapshots = pgTable(
         /** Ứng, thưởng, trừ lúc chốt (migration 0157). Bản chụp trước đó không có. */
         adjustments?: {
           id: string;
-          kind: "advance" | "bonus" | "deduction";
+          kind: "advance" | "bonus" | "deduction" | "meal";
           amount: number;
           note: string;
           date: string;

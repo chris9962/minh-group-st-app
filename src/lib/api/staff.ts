@@ -119,7 +119,7 @@ export const PayrollRow = StaffRow.pick({
   /** Từng khoản của `salary`, cùng tháng. Tháng đã chốt lương là bản đã lưu lúc chốt. */
   salaryBreakdown: SalaryBreakdown,
   /** Tổng ứng trước, thưởng, trừ lương của tháng, đồng. */
-  salaryAdjustments: z.object({ advance: z.number(), bonus: z.number(), deduction: z.number() }),
+  salaryAdjustments: z.object({ advance: z.number(), bonus: z.number(), deduction: z.number(), meal: z.number() }),
 });
 export type PayrollRow = z.infer<typeof PayrollRow>;
 

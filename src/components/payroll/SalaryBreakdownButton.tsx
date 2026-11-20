@@ -25,6 +25,7 @@ const ADJUSTMENT_SIGNS: { kind: SalaryAdjustmentKind; sign: 1 | -1 }[] = [
   { kind: "bonus", sign: 1 },
   { kind: "deduction", sign: -1 },
   { kind: "advance", sign: -1 },
+  { kind: "meal", sign: -1 },
 ];
 
 const monthText = (month: string) => {

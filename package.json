@@ -38,6 +38,7 @@
     "db:grant-bank-blanks": "bun --env-file=.env.local scripts/db-grant-bank-blanks.ts",
     "db:grant-record-attendance": "bun --env-file=.env.local scripts/db-grant-record-attendance.ts",
     "db:grant-salary": "bun --env-file=.env.local scripts/db-grant-salary.ts",
+    "db:grant-meal-allowance": "bun --env-file=.env.local scripts/db-grant-meal-allowance.ts",
     "db:seed-shopeepay": "bun --env-file=.env.local scripts/db-seed-shopeepay.ts",
     "db:seed-gift-shops": "bun --env-file=.env.local scripts/db-seed-gift-shops.ts",
     "db:seed-insurance-blanks": "bun --env-file=.env.local scripts/db-seed-insurance-blanks.ts",

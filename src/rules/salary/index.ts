@@ -38,7 +38,12 @@ export type SalaryResult = {
   facts: SalaryFact[];
   items: SalaryItem[];
   revenue?: SalaryRevenue;
+  /** Ăn ca theo ngày công app tính, cho màn Lương ăn ca. Kỳ trước 2026-11 không trả. */
+  meal?: { appDays: number; maxDays: number };
 };
+
+/** Nhóm trần ngày ăn ca, theo nhánh công thức lương. */
+export type MealFormula = "staff" | "atm" | "social" | "fixed" | "manager" | "deputy-director";
 
 /** Một chỉ tiêu trong tháng theo QĐ 145: số được giao và số đã đạt. */
 export type QuotaProgress = { target: number; achieved: number };
@@ -67,6 +72,8 @@ export type StaffSalaryInput = {
   socialInsurance?: SocialInsuranceGroupInput[];
   /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. Kỳ trước 2026-10 bỏ qua. */
   maxWorkDays?: number | null;
+  /** Số ngày ăn ca ở màn Lương ăn ca, dùng nguyên không cắt trần. Kỳ trước 2026-11 bỏ qua. */
+  mealDays?: number | null;
 };
 
 export type SocialInsuranceGroupInput = {
@@ -91,6 +98,8 @@ export type ManagerSalaryInput = {
   casaAccounts?: number;
   /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. Kỳ trước 2026-10 bỏ qua. */
   maxWorkDays?: number | null;
+  /** Số ngày ăn ca ở màn Lương ăn ca, dùng nguyên không cắt trần. Kỳ trước 2026-11 bỏ qua. */
+  mealDays?: number | null;
 };
 
 export type FixedSalaryInput = {
@@ -100,6 +109,8 @@ export type FixedSalaryInput = {
   workDays: number;
   /** Trần ngày công của phòng có chấm công (P-91). Vắng thì dùng trần của kỳ. */
   maxWorkDays?: number | null;
+  /** Số ngày ăn ca ở màn Lương ăn ca, dùng nguyên không cắt trần. Kỳ trước 2026-11 bỏ qua. */
+  mealDays?: number | null;
 };
 
 export type DeputyDirectorSalaryInput = {
@@ -122,9 +133,11 @@ export type DeputyDirectorSalaryInput = {
     points: number;
     members: { points: number; target: number }[];
   }[];
+  /** Số ngày ăn ca ở màn Lương ăn ca, thay số ngày cố định của kỳ. Kỳ trước 2026-11 bỏ qua. */
+  mealDays?: number | null;
 };
 
-type SalaryRules = {
+export type SalaryRules = {
   staff(input: StaffSalaryInput): SalaryResult;
   manager(input: ManagerSalaryInput): SalaryResult;
   /** Kỳ chưa có bảng lương Phó GĐ thì không khai. */
@@ -141,6 +154,10 @@ type SalaryRules = {
    * thì mỗi người nhận đủ.
    */
   deputyDirectorSharesDepartments?: boolean;
+  /** Đơn giá ăn ca một ngày. Kỳ không khai thì không có màn Lương ăn ca. */
+  mealRate?: number;
+  /** Trần ngày ăn ca, cùng trần công thức lương đang dùng. `maxWorkDays` là trần phòng có chấm công. */
+  mealMaxDays?(formula: MealFormula, maxWorkDays: number | null): number;
 };
 
 /** Khoá là THÁNG bắt đầu áp dụng. Tháng trước kỳ đầu tiên không có công thức lương. */

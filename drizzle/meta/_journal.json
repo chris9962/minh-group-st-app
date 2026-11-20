@@ -1282,6 +1282,13 @@
       "when": 1789891501000,
       "tag": "0183_blanks_manual_remaining",
       "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1789891501100,
+      "tag": "0184_meal_allowances",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@ import { businessDay } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { isMonthClosed } from "./closedMonths";
 import { db } from "./db/client";
-import { salaryAdjustments, salaryAdvanceRequests, users } from "./db/schema";
+import { mealAllowanceRows, salaryAdjustments, salaryAdvanceRequests, users } from "./db/schema";
 
 /**
  * Các lần ứng, thưởng, trừ đang có trong bảng của từng người, cũ trước mới sau.
@@ -30,14 +30,16 @@ export async function liveSalaryAdjustments(
       createdAt: salaryAdjustments.createdAt,
       createdByName: users.fullName,
       advanceId: salaryAdvanceRequests.id,
+      mealId: mealAllowanceRows.id,
     })
     .from(salaryAdjustments)
     .innerJoin(users, eq(users.id, salaryAdjustments.createdBy))
     .leftJoin(salaryAdvanceRequests, eq(salaryAdvanceRequests.adjustmentId, salaryAdjustments.id))
+    .leftJoin(mealAllowanceRows, eq(mealAllowanceRows.adjustmentId, salaryAdjustments.id))
     .where(and(eq(salaryAdjustments.yearMonth, yearMonth), inArray(salaryAdjustments.userId, userIds)))
     .orderBy(asc(salaryAdjustments.createdAt), asc(salaryAdjustments.id));
-  for (const { userId, createdAt, advanceId, ...r } of rows)
-    out.get(userId)?.push({ ...r, date: businessDay(createdAt), linked: advanceId !== null });
+  for (const { userId, createdAt, advanceId, mealId, ...r } of rows)
+    out.get(userId)?.push({ ...r, date: businessDay(createdAt), linked: advanceId !== null || mealId !== null });
   return out;
 }
 
@@ -93,14 +95,19 @@ export async function deleteSalaryAdjustment(
   const staff = await staffOf(userId);
   if (!staff) return null;
   const [row] = await db
-    .select({ yearMonth: salaryAdjustments.yearMonth, advanceId: salaryAdvanceRequests.id })
+    .select({
+      yearMonth: salaryAdjustments.yearMonth,
+      advanceId: salaryAdvanceRequests.id,
+      mealId: mealAllowanceRows.id,
+    })
     .from(salaryAdjustments)
     .leftJoin(salaryAdvanceRequests, eq(salaryAdvanceRequests.adjustmentId, salaryAdjustments.id))
+    .leftJoin(mealAllowanceRows, eq(mealAllowanceRows.adjustmentId, salaryAdjustments.id))
     .where(and(eq(salaryAdjustments.id, adjustmentId), eq(salaryAdjustments.userId, userId)))
     .limit(1);
   if (!row) return null;
   if (await isMonthClosed(row.yearMonth)) return "closed";
-  if (row.advanceId) return "linked";
+  if (row.advanceId || row.mealId) return "linked";
 
   const [deleted] = await db
     .delete(salaryAdjustments)

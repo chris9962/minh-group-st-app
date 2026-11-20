@@ -135,6 +135,7 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       deduction: totalOf("deduction"),
       deductionReason: notesOf("deduction"),
       advance: totalOf("advance"),
+      meal: totalOf("meal"),
       salary: salary?.amount ?? 0,
       bankAccountNumber: r.bankAccountNumber ?? "",
       bankName: r.bankName ?? "",

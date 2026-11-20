@@ -29,6 +29,7 @@ const EMPTY_TEXT: Record<SalaryAdjustmentKind, string> = {
   advance: "Chưa ứng lương lần nào.",
   bonus: "Chưa có khoản thưởng nào.",
   deduction: "Chưa có khoản trừ nào.",
+  meal: "Chưa chi ăn ca riêng.",
 };
 
 type Props = {

@@ -213,6 +213,13 @@ export const Action = z.enum([
    * khách sang nhân viên cùng phòng. Điểm KPI ngân hàng đi theo người nhận.
    */
   'change-owner',
+  /**
+   * Đặc biệt — salary (migration 0184, chốt 2026-11-20): Trưởng phòng sửa số ngày
+   * và duyệt lương ăn ca của phòng trong ngày cuối tháng.
+   */
+  'approve-meal',
+  /** Đặc biệt — salary (migration 0184): bước kế toán của lương ăn ca, từ ngày 1 tháng sau. */
+  'pay-meal',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -262,6 +269,8 @@ export const ACTION_LABEL: Record<Action, string> = {
   'approve-advance': 'Duyệt tạm ứng lương',
   'pay-advance': 'Kế toán xử lý tạm ứng lương',
   'change-owner': 'Đổi người tạo',
+  'approve-meal': 'Duyệt lương ăn ca',
+  'pay-meal': 'Kế toán xử lý lương ăn ca',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -307,6 +316,8 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'allocate-blanks',
   // Kế toán xử lý yêu cầu tạm ứng của cả công ty.
   'pay-advance',
+  // Kế toán xử lý lương ăn ca của cả công ty.
+  'pay-meal',
 ];
 
 /** File lương có số tài khoản nhận lương của mọi phòng, nên `salary:export` không cắt theo phòng. */
@@ -320,7 +331,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   vneid: ['lookup'],
   staff: ['exclude-department-points'],
   attendance: ['record-attendance'],
-  salary: ['close-salary', 'approve-advance', 'pay-advance'],
+  salary: ['close-salary', 'approve-advance', 'pay-advance', 'approve-meal', 'pay-meal'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
    *

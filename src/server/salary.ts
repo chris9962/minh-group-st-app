@@ -8,10 +8,12 @@ import {
   quotaTargetFor,
   salaryRulesFor,
   type DepartmentQuotaProgress,
+  type MealFormula,
   type QuotaProgress,
   type SalaryFact,
   type SalaryRevenue,
   type SalaryItem,
+  type SalaryRules,
 } from "@/rules/salary";
 import { countCasaAccounts } from "./casa";
 import { lockSalaryMonth } from "./closedMonths";
@@ -22,6 +24,7 @@ import {
   employeeWorkDays,
   kpiAdjustments,
   kpiScores,
+  mealAllowanceRows,
   salaryAdvanceRequests,
   salaryClosings,
   salarySnapshots,
@@ -112,6 +115,198 @@ function maxWorkDaysOf(
   return daysInMonth === 31 ? row.maxWorkDays31 : row.maxWorkDaysUnder31;
 }
 
+type Formula = "fixed" | "staff" | "manager" | "deputy-director";
+
+/**
+ * Nhánh công thức lương của một người trong tháng; `null` là không có lương CĐS.
+ * Màn Lương ăn ca đọc cùng hàm, để danh sách ăn ca đúng những người có dòng ăn ca trong lương.
+ */
+function formulaOf(subject: Subject, rules: SalaryRules, managedSalesCount: number, workDays: number): Formula | null {
+  // Lương cứng đứng trước mọi nhánh chức vụ: Trưởng, Phó phòng An Sinh lương cứng không có lương quản lý.
+  // Người đã khoá cuối tháng mà không có ngày công nào thì không nhận lương cứng của tháng đó.
+  if (subject.salaryScheme === "fixed" && rules.fixed) return subject.active || workDays > 0 ? "fixed" : null;
+  if (subject.role === "staff" && subject.departmentType === "sales") return "staff";
+  if (
+    (subject.role === "head" || subject.role === "deputy-head") &&
+    subject.departmentType === "sales" &&
+    subject.departmentId
+  )
+    return "manager";
+  if (subject.role === "deputy-director" && rules.deputyDirector && managedSalesCount > 0) return "deputy-director";
+  return null;
+}
+
+const mealFormulaOf = (formula: Formula, subject: Subject): MealFormula =>
+  formula === "staff" && (subject.salaryScheme === "atm" || subject.salaryScheme === "social")
+    ? subject.salaryScheme
+    : formula;
+
+/** Nhân sự của tháng, và các phòng kinh doanh mỗi Phó GĐ phụ trách. */
+async function loadSubjects(userIds: string[], yearMonth: string) {
+  // innerJoin: người chưa có tài khoản trong tháng đó không có dòng nhân sự của tháng.
+  const rosterRows = await db
+    .select({
+      id: users.id,
+      role: staffRoster.role,
+      contractType: staffRoster.contractType,
+      salaryScheme: staffRoster.salaryScheme,
+      fixedSalary: staffRoster.fixedSalary,
+      active: staffRoster.active,
+      departmentId: staffRoster.departmentId,
+      departmentCode: departments.code,
+      departmentType: departments.type,
+      attendanceMode: staffRoster.attendanceMode,
+      maxWorkDays31: staffRoster.maxWorkDays31,
+      maxWorkDaysUnder31: staffRoster.maxWorkDaysUnder31,
+      managedDepartmentIds: staffRoster.managedDepartmentIds,
+      points: scoreExpr(yearMonth),
+    })
+    .from(users)
+    .innerJoin(
+      staffRoster,
+      and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+    )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+    .leftJoin(
+      kpiScores,
+      and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
+    )
+    .where(inArray(users.id, userIds));
+  const subjects: Subject[] = rosterRows.map(({ maxWorkDays31, maxWorkDaysUnder31, ...row }) => ({
+    ...row,
+    maxWorkDays: maxWorkDaysOf({ attendanceMode: row.attendanceMode, maxWorkDays31, maxWorkDaysUnder31 }, yearMonth),
+  }));
+
+  const managedIdsByDeputyDirector = new Map(
+    rosterRows
+      .filter((row) => row.role === "deputy-director")
+      .map((row) => [row.id, row.managedDepartmentIds] as const),
+  );
+  const allManagedIds = [...new Set([...managedIdsByDeputyDirector.values()].flat())];
+  const managedSalesDepartments = allManagedIds.length
+    ? await db
+        .select({
+          departmentId: departments.id,
+          departmentCode: departments.code,
+          departmentName: departments.name,
+        })
+        .from(departments)
+        .where(and(inArray(departments.id, allManagedIds), eq(departments.type, "sales")))
+    : [];
+  const salesIds = new Set(managedSalesDepartments.map((row) => row.departmentId));
+  const managedByUser = new Map<string, string[]>();
+  for (const [userId, departmentIds] of managedIdsByDeputyDirector)
+    managedByUser.set(userId, departmentIds.filter((departmentId) => salesIds.has(departmentId)));
+  return { subjects, managedByUser, managedSalesDepartments };
+}
+
+/** Ngày công của từng người, và số ngày có ngày công của từng phòng, trong tháng. */
+async function loadWorkDays(userIds: string[], departmentIds: string[], yearMonth: string) {
+  const { from, to } = monthRange(yearMonth);
+  const [userDayRows, departmentDayRows] = await Promise.all([
+    db
+      // Người chấm công có nửa ngày từ tháng 2026-10, nên cộng `fraction` chứ không đếm dòng.
+      .select({ userId: employeeWorkDays.userId, count: sql<number>`sum(${employeeWorkDays.fraction})::float` })
+      .from(employeeWorkDays)
+      .where(
+        and(
+          inArray(employeeWorkDays.userId, userIds),
+          sql`${employeeWorkDays.workDate} between ${from}::date and ${to}::date`,
+        ),
+      )
+      .groupBy(employeeWorkDays.userId),
+    departmentIds.length
+      ? db
+          .select({
+            departmentId: employeeWorkDays.departmentId,
+            count: sql<number>`count(distinct ${employeeWorkDays.workDate})::int`,
+          })
+          .from(employeeWorkDays)
+          .where(
+            and(
+              inArray(employeeWorkDays.departmentId, departmentIds),
+              sql`${employeeWorkDays.workDate} between ${from}::date and ${to}::date`,
+            ),
+          )
+          .groupBy(employeeWorkDays.departmentId)
+      : Promise.resolve([]),
+  ]);
+  return {
+    userDays: new Map(userDayRows.map((row) => [row.userId, row.count])),
+    departmentDays: new Map(departmentDayRows.map((row) => [row.departmentId, row.count])),
+  };
+}
+
+/** Ngày công công thức lương dùng cho ăn ca: phòng có chấm công thì quản lý cũng chấm, như `listWorkDayExport`. */
+const mealWorkDaysOf = (
+  formula: Formula,
+  subject: Subject,
+  userDays: Map<string, number>,
+  departmentDays: Map<string | null, number>,
+): number =>
+  formula === "manager" && !subject.attendanceMode
+    ? (departmentDays.get(subject.departmentId) ?? 0)
+    : (userDays.get(subject.id) ?? 0);
+
+export type MealBasis = {
+  /** Số ngày công lương đang dùng, đã cắt trần. */
+  appDays: number;
+  maxDays: number;
+  /** Còn làm cuối tháng, theo nhân sự của tháng. */
+  active: boolean;
+  departmentId: string | null;
+};
+
+/**
+ * Người có dòng "Hỗ trợ ăn ca" trong lương tháng, kèm số ngày app tính và trần.
+ * Không suy ra từ kết quả lương: `nonZeroItems` bỏ dòng ăn ca 0đ.
+ */
+export async function mealBasisFor(userIds: string[], yearMonth: string): Promise<Map<string, MealBasis>> {
+  const out = new Map<string, MealBasis>();
+  const rules = salaryRulesFor(yearMonth);
+  if (userIds.length === 0 || !rules?.mealMaxDays) return out;
+  const { subjects, managedByUser } = await loadSubjects(userIds, yearMonth);
+  const managerDepartmentIds = [
+    ...new Set(
+      subjects
+        .filter((s) => (s.role === "head" || s.role === "deputy-head") && s.departmentType === "sales" && s.departmentId)
+        .map((s) => s.departmentId!),
+    ),
+  ];
+  const { userDays, departmentDays } = await loadWorkDays(userIds, managerDepartmentIds, yearMonth);
+  for (const subject of subjects) {
+    const formula = formulaOf(subject, rules, managedByUser.get(subject.id)?.length ?? 0, userDays.get(subject.id) ?? 0);
+    if (!formula) continue;
+    const maxDays = rules.mealMaxDays(mealFormulaOf(formula, subject), subject.maxWorkDays);
+    const workDays = formula === "deputy-director" ? maxDays : mealWorkDaysOf(formula, subject, userDays, departmentDays);
+    out.set(subject.id, {
+      appDays: Math.min(workDays, maxDays),
+      maxDays,
+      active: subject.active,
+      departmentId: subject.departmentId,
+    });
+  }
+  return out;
+}
+
+/** Số ngày ở màn Lương ăn ca thay ngày công: số đã khoá, không thì số người duyệt sửa. */
+async function mealDaysOverride(userIds: string[], yearMonth: string): Promise<Map<string, number>> {
+  const rows = await db
+    .select({
+      userId: mealAllowanceRows.userId,
+      days: sql<number>`coalesce(${mealAllowanceRows.lockedDays}, ${mealAllowanceRows.editedDays})::float`,
+    })
+    .from(mealAllowanceRows)
+    .where(
+      and(
+        eq(mealAllowanceRows.yearMonth, yearMonth),
+        inArray(mealAllowanceRows.userId, userIds),
+        sql`coalesce(${mealAllowanceRows.lockedDays}, ${mealAllowanceRows.editedDays}) is not null`,
+      ),
+    );
+  return new Map(rows.map((row) => [row.userId, row.days]));
+}
+
 type StaffScore = {
   id: string;
   departmentId: string;
@@ -199,75 +394,22 @@ async function liveSalaries(
   if (userIds.length === 0 || !rules) return result;
 
   const points = scoreExpr(yearMonth);
-  // innerJoin: người chưa có tài khoản trong tháng đó không có dòng nhân sự của
-  // tháng, giữ lương 0 đã điền sẵn.
-  const rosterRows = await db
-    .select({
-      id: users.id,
-      role: staffRoster.role,
-      contractType: staffRoster.contractType,
-      salaryScheme: staffRoster.salaryScheme,
-      fixedSalary: staffRoster.fixedSalary,
-      active: staffRoster.active,
-      departmentId: staffRoster.departmentId,
-      departmentCode: departments.code,
-      departmentType: departments.type,
-      attendanceMode: staffRoster.attendanceMode,
-      maxWorkDays31: staffRoster.maxWorkDays31,
-      maxWorkDaysUnder31: staffRoster.maxWorkDaysUnder31,
-      managedDepartmentIds: staffRoster.managedDepartmentIds,
-      points,
-    })
-    .from(users)
-    .innerJoin(
-      staffRoster,
-      and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
-    )
-    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
-    .leftJoin(
-      kpiScores,
-      and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
-    )
-    .where(inArray(users.id, userIds));
-  const subjects: Subject[] = rosterRows.map(({ maxWorkDays31, maxWorkDaysUnder31, ...row }) => ({
-    ...row,
-    maxWorkDays: maxWorkDaysOf({ attendanceMode: row.attendanceMode, maxWorkDays31, maxWorkDaysUnder31 }, yearMonth),
-  }));
-
-  const managedIdsByDeputyDirector = new Map(
-    rosterRows
-      .filter((row) => row.role === "deputy-director")
-      .map((row) => [row.id, row.managedDepartmentIds] as const),
-  );
-  const allManagedIds = [...new Set([...managedIdsByDeputyDirector.values()].flat())];
-  const managedSalesDepartments = allManagedIds.length
-    ? await db
-        .select({
-          departmentId: departments.id,
-          departmentCode: departments.code,
-          departmentName: departments.name,
-        })
-        .from(departments)
-        .where(and(inArray(departments.id, allManagedIds), eq(departments.type, "sales")))
-    : [];
+  // Người chưa có tài khoản trong tháng đó không có dòng nhân sự của tháng, giữ lương 0 đã điền sẵn.
+  const { subjects, managedByUser, managedSalesDepartments } = await loadSubjects(userIds, yearMonth);
   const salesDepartmentCode = new Map(
     managedSalesDepartments.map((row) => [row.departmentId, row.departmentCode]),
   );
   const salesDepartmentName = new Map(
     managedSalesDepartments.map((row) => [row.departmentId, row.departmentName]),
   );
-  const managedByUser = new Map<string, string[]>();
   const managedRows: { userId: string; departmentId: string; departmentCode: string }[] = [];
-  for (const [userId, departmentIds] of managedIdsByDeputyDirector) {
-    const sales = departmentIds.filter((departmentId) => salesDepartmentCode.has(departmentId));
-    managedByUser.set(userId, sales);
+  for (const [userId, sales] of managedByUser)
     for (const departmentId of sales)
       managedRows.push({
         userId,
         departmentId,
         departmentCode: salesDepartmentCode.get(departmentId)!,
       });
-  }
 
   // Đếm trên MỌI Phó GĐ của tháng, không riêng `userIds`: xem lương một người vẫn phải chia đúng.
   const deputyDirectorsByDepartment = new Map<string, number>();
@@ -358,39 +500,10 @@ async function liveSalaries(
         ) as ReachRow[]
     : [];
 
-  const { from, to } = monthRange(yearMonth);
-  const [userDayRows, departmentDayRows] = await Promise.all([
-    db
-      // Người chấm công có nửa ngày từ tháng 2026-10, nên cộng `fraction` chứ không đếm dòng.
-      .select({ userId: employeeWorkDays.userId, count: sql<number>`sum(${employeeWorkDays.fraction})::float` })
-      .from(employeeWorkDays)
-      .where(
-        and(
-          inArray(employeeWorkDays.userId, userIds),
-          sql`${employeeWorkDays.workDate} between ${from}::date and ${to}::date`,
-        ),
-      )
-      .groupBy(employeeWorkDays.userId),
-    relevantDepartmentIds.length
-      ? db
-          .select({
-            departmentId: employeeWorkDays.departmentId,
-            count: sql<number>`count(distinct ${employeeWorkDays.workDate})::int`,
-          })
-          .from(employeeWorkDays)
-          .where(
-            and(
-              inArray(employeeWorkDays.departmentId, relevantDepartmentIds),
-              sql`${employeeWorkDays.workDate} between ${from}::date and ${to}::date`,
-            ),
-          )
-          .groupBy(employeeWorkDays.departmentId)
-      : Promise.resolve([]),
+  const [{ userDays, departmentDays }, mealDaysOf] = await Promise.all([
+    loadWorkDays(userIds, relevantDepartmentIds, yearMonth),
+    rules.mealMaxDays ? mealDaysOverride(userIds, yearMonth) : Promise.resolve(new Map<string, number>()),
   ]);
-  const userDays = new Map(userDayRows.map((row) => [row.userId, row.count]));
-  const departmentDays = new Map(
-    departmentDayRows.map((row) => [row.departmentId, row.count]),
-  );
   const staffByDepartment = new Map<string, number[]>();
   const branchPointsByDepartment = new Map<string, number>();
   for (const row of scoreRows) {
@@ -429,16 +542,17 @@ async function liveSalaries(
   for (const subject of subjects) {
     let salary = null;
 
-    // Lương cứng đứng trước mọi nhánh chức vụ: Trưởng, Phó phòng An Sinh lương cứng không có lương quản lý.
-    // Người đã khoá cuối tháng mà không có ngày công nào thì không nhận lương cứng của tháng đó.
     const workDays = userDays.get(subject.id) ?? 0;
-    if (subject.salaryScheme === "fixed" && rules.fixed) {
-      if (subject.active || workDays > 0)
-        salary = rules.fixed({ amount: subject.fixedSalary, workDays, maxWorkDays: subject.maxWorkDays });
-    } else if (subject.role === "staff" && subject.departmentType === "sales") {
+    const mealDays = mealDaysOf.get(subject.id) ?? null;
+    const managed = managedByUser.get(subject.id) ?? [];
+    const formula = formulaOf(subject, rules, managed.length, workDays);
+    if (formula === "fixed") {
+      salary = rules.fixed!({ amount: subject.fixedSalary, workDays, maxWorkDays: subject.maxWorkDays, mealDays });
+    } else if (formula === "staff") {
       salary = rules.staff({
         points: subject.points,
-        workDays: userDays.get(subject.id) ?? 0,
+        workDays,
+        mealDays,
         directedQuota: quota.staff(subject.id),
         casaAccounts: quota.casa(subject.id),
         scheme: subject.salaryScheme,
@@ -451,50 +565,45 @@ async function liveSalaries(
         })),
         maxWorkDays: subject.maxWorkDays,
       });
-    } else if (
-      (subject.role === "head" || subject.role === "deputy-head") &&
-      subject.departmentType === "sales" &&
-      subject.departmentId
-    ) {
+    } else if (formula === "manager") {
       salary = rules.manager({
-        role: subject.role,
+        role: subject.role as "head" | "deputy-head",
         points: subject.points,
-        teamPoints: staffByDepartment.get(subject.departmentId) ?? [],
-        // Cùng nguồn với báo cáo Ngày công (`listWorkDayExport`): phòng có chấm công thì quản lý cũng chấm.
-        workDays: subject.attendanceMode ? workDays : (departmentDays.get(subject.departmentId) ?? 0),
-        departmentQuota: quota.department(subject.departmentId),
+        teamPoints: staffByDepartment.get(subject.departmentId!) ?? [],
+        workDays: mealWorkDaysOf(formula, subject, userDays, departmentDays),
+        departmentQuota: quota.department(subject.departmentId!),
         casaAccounts: quota.casa(subject.id),
         maxWorkDays: subject.maxWorkDays,
+        mealDays,
       });
-    } else if (subject.role === "deputy-director" && rules.deputyDirector) {
-      const managed = managedByUser.get(subject.id) ?? [];
-      if (managed.length > 0)
-        salary = rules.deputyDirector({
-          teamPoints: managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []),
-          members: managed.flatMap((departmentId) =>
-            (reachByDepartment.get(departmentId) ?? []).map((member) => ({
-              ...member,
-              share: shareOf(departmentId),
-            })),
-          ),
-          branchPoints: managed.reduce(
-            (sum, departmentId) =>
-              sum + (branchPointsByDepartment.get(departmentId) ?? 0) * shareOf(departmentId),
-            0,
-          ),
-          departmentQuotas: managed.flatMap((departmentId) => {
-            const progress = quota.department(departmentId);
-            return progress ? [{ ...progress, share: shareOf(departmentId) }] : [];
-          }),
-          sharedDepartments: managed
-            .filter((departmentId) => shareOf(departmentId) < 1)
-            .map((departmentId) => ({
-              name: salesDepartmentName.get(departmentId)!,
-              deputyDirectors: deputyDirectorsByDepartment.get(departmentId)!,
-              points: branchPointsByDepartment.get(departmentId) ?? 0,
-              members: reachByDepartment.get(departmentId) ?? [],
-            })),
-        });
+    } else if (formula === "deputy-director") {
+      salary = rules.deputyDirector!({
+        teamPoints: managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []),
+        members: managed.flatMap((departmentId) =>
+          (reachByDepartment.get(departmentId) ?? []).map((member) => ({
+            ...member,
+            share: shareOf(departmentId),
+          })),
+        ),
+        branchPoints: managed.reduce(
+          (sum, departmentId) =>
+            sum + (branchPointsByDepartment.get(departmentId) ?? 0) * shareOf(departmentId),
+          0,
+        ),
+        departmentQuotas: managed.flatMap((departmentId) => {
+          const progress = quota.department(departmentId);
+          return progress ? [{ ...progress, share: shareOf(departmentId) }] : [];
+        }),
+        sharedDepartments: managed
+          .filter((departmentId) => shareOf(departmentId) < 1)
+          .map((departmentId) => ({
+            name: salesDepartmentName.get(departmentId)!,
+            deputyDirectors: deputyDirectorsByDepartment.get(departmentId)!,
+            points: branchPointsByDepartment.get(departmentId) ?? 0,
+            members: reachByDepartment.get(departmentId) ?? [],
+          })),
+        mealDays,
+      });
     }
 
     if (salary)
@@ -673,6 +782,22 @@ async function unsettledAdvanceReason(conn: Pick<typeof db, "select">, yearMonth
     : null;
 }
 
+/** Chốt rồi thì nút Đã chi ăn ca bị khoá, lương tháng trả ăn ca lần nữa. Ăn ca tháng M trừ vào chính lương tháng M. */
+async function unsettledMealReason(conn: Pick<typeof db, "select">, yearMonth: string): Promise<string | null> {
+  const [row] = await conn
+    .select({ n: sql<number>`count(*)::int` })
+    .from(mealAllowanceRows)
+    .where(
+      and(
+        eq(mealAllowanceRows.yearMonth, yearMonth),
+        inArray(mealAllowanceRows.status, ["pending", "head-approved", "forwarded", "approved", "processing"]),
+      ),
+    );
+  return row && row.n > 0
+    ? `Lương ${monthText(yearMonth)} còn ${row.n} dòng ăn ca chưa chi xong, không chốt được.`
+    : null;
+}
+
 function blockedReasonOf(yearMonth: string): string | null {
   if (yearMonth >= businessMonth())
     return `Lương ${monthText(yearMonth)} chốt được từ ngày ${firstDayAfter(yearMonth)}, khi tháng đã kết thúc.`;
@@ -691,7 +816,11 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
   // Tháng chưa kết thúc thì điểm và ngày công còn tăng. Tháng chưa có công
   // thức thì không có số nào để chốt. Tính ở máy chủ vì tháng hiện tại theo
   // giờ Việt Nam, máy người dùng để múi giờ khác thì ra tháng khác.
-  const blockedReason = row ? null : (blockedReasonOf(yearMonth) ?? (await unsettledAdvanceReason(db, yearMonth)));
+  const blockedReason = row
+    ? null
+    : (blockedReasonOf(yearMonth) ??
+      (await unsettledAdvanceReason(db, yearMonth)) ??
+      (await unsettledMealReason(db, yearMonth)));
   return {
     month: yearMonth,
     closed: Boolean(row),
@@ -714,7 +843,7 @@ export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<
   return db.transaction(async (tx) => {
     // Tính lương SAU khi giữ khoá: Đã chi tạm ứng phải chờ, không chen vào giữa lúc tính và lúc lưu bản chụp.
     await lockSalaryMonth(tx, yearMonth);
-    const unsettled = await unsettledAdvanceReason(tx, yearMonth);
+    const unsettled = (await unsettledAdvanceReason(tx, yearMonth)) ?? (await unsettledMealReason(tx, yearMonth));
     if (unsettled) return unsettled;
 
     const everyone = await db.select({ id: users.id }).from(users);

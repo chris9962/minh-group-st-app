@@ -7,6 +7,7 @@ import {
   canOpenBankAdmin,
   canOpenPayroll,
   canOpenSalaryAdvances,
+  canOpenMealAllowances,
   canOrg,
   isFullAccess,
 } from './permissions';
@@ -34,6 +35,7 @@ export type NavIconKey =
   | 'people'
   | 'payroll'
   | 'advance'
+  | 'meal'
   | 'profile'
   | 'target'
   | 'gift'
@@ -209,6 +211,9 @@ export function navFor(user: User | null): NavEntry[] {
   }
   if (canOpenSalaryAdvances(user)) {
     (fullAccess ? manage : items).push({ href: '/salary-advances', label: 'Tạm ứng lương', icon: 'advance', screen: 'P-51' });
+  }
+  if (canOpenMealAllowances(user)) {
+    (fullAccess ? manage : items).push({ href: '/meal-allowances', label: 'Lương ăn ca', icon: 'meal', screen: 'P-51' });
   }
 
   // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.

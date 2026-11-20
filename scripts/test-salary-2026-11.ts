@@ -108,6 +108,24 @@ for (const [month, rules] of [["2026-10", oct], ["2026-11", nov]] as const) {
   check(`${month} Trưởng phòng nửa ngày công: dấu phẩy`, item(rules.manager({ ...managerBase, workDays: 20.5 }), "Hỗ trợ ăn ca")?.formula, "20,5 ngày × 120.000đ");
 }
 
+// Lương ăn ca (chốt 2026-11-20): ăn ca nằm ngoài phép cắt về 0, số ngày lấy từ màn Lương ăn ca
+const deepShort = { ...managerBase, teamPoints: [], points: 0, departmentQuota: { hkd: { target: 100, achieved: 0 }, directed: null } };
+check("TP các khoản khác âm: lương = ăn ca", nov.manager(deepShort).amount, 26 * 120_000);
+check("Kỳ 2026-10 giữ phép cắt về 0 cả ăn ca", oct.manager(deepShort).amount, 0);
+const edited = nov.staff({ ...staffBase, workDays: 26, mealDays: 20.5 });
+check("Số ngày sửa thay ngày công: tiền ăn ca", meal(edited), 20.5 * 120_000);
+check("Số ngày sửa thay ngày công: ô Ngày công", fact(edited, "Ngày công"), "20,5 ngày");
+check("Số ngày sửa không cắt trần", meal(nov.staff({ ...atmBase, workDays: 10, mealDays: 25 })), 25 * 120_000);
+check("Số app tính cắt trần", nov.staff({ ...atmBase, workDays: 30 }).meal?.appDays, 22);
+check("Số app tính giữ khi có số sửa", nov.staff({ ...atmBase, workDays: 30, mealDays: 5 }).meal?.appDays, 22);
+check("Trần trả kèm: trần phòng", nov.manager({ ...managerBase, maxWorkDays: 27 }).meal?.maxDays, 27);
+check("Lương cứng có dòng ăn ca", nov.fixed!({ amount: 5_000_000, workDays: 3 }).meal?.appDays, 3);
+check("PGĐ số ngày 0: không có tiền ăn ca", meal(nov.deputyDirector!({ ...deputyBase, mealDays: 0 })), 0);
+check("PGĐ số app tính 22", nov.deputyDirector!(deputyBase).meal?.appDays, 22);
+check("Kỳ 2026-10 không trả thông tin ăn ca", oct.staff(staffBase).meal === undefined, true);
+check("Đơn giá ăn ca kỳ 2026-11", nov.mealRate, 120_000);
+check("Kỳ 2026-10 không có đơn giá ăn ca", oct.mealRate, undefined);
+
 if (failures.length > 0) {
   console.error(`Lương 2026-11: ${failures.length} ca sai, ${passed} ca đúng`);
   for (const f of failures) console.error(`  ✗ ${f}`);

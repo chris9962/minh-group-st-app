@@ -390,6 +390,10 @@ export function recordVisibility(
 export const canOpenSalaryAdvances = (user: User | null): boolean =>
   can(user, 'salary', 'approve-advance') || can(user, 'salary', 'pay-advance');
 
+/** Trang Lương ăn ca (chốt 2026-11-20): Trưởng phòng bằng `salary:approve-meal`, kế toán bằng `salary:pay-meal`. */
+export const canOpenMealAllowances = (user: User | null): boolean =>
+  can(user, 'salary', 'approve-meal') || can(user, 'salary', 'pay-meal');
+
 /**
  * Người này xem được lương của `target` trong tháng đang xem không (chốt 2026-11-16).
  *

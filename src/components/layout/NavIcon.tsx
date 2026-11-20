@@ -20,6 +20,7 @@ import {
   Users,
   Wallet,
   HandCoins,
+  Utensils,
 } from "lucide-react";
 import type { NavIconKey } from "@/lib/nav";
 
@@ -42,6 +43,7 @@ const ICONS = {
   people: UserRoundCheck,
   payroll: Wallet,
   advance: HandCoins,
+  meal: Utensils,
   profile: CircleUserRound,
   target: Target,
   gift: Gift,
