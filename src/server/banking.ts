@@ -601,7 +601,9 @@ async function accountFilters(
 
   const parts = [
     scopeWhere(visible),
-    searchWhere(query.search, searchCodeIds, idNumberOnly),
+    idNumberOnly
+      ? searchWhere(query.search, searchCodeIds, true)
+      : trackingCodeOrSearchWhere(query.search, searchCodeIds),
     // `[]` = mã gõ vào không có thật → không dòng nào khớp. `sql\`false\`` nói
     // đúng điều đó; bỏ qua bộ lọc thì người dùng gõ sai mã lại thấy cả kho.
     bankIds === null ? undefined : bankIds.length > 0 ? inArray(bankAccounts.bankId, bankIds) : sql`false`,
@@ -948,11 +950,11 @@ export const accountOpenedDayBetween = (from: string, to: string): SQL =>
     ),
   ) as SQL;
 
-const trackingCodeOrSearchWhere = (raw: string): SQL | undefined => {
+const trackingCodeOrSearchWhere = (raw: string, codeIds: string[] = []): SQL | undefined => {
   const code = raw.replace(/\s/g, "");
   if (!code) return undefined;
   return or(
-    searchWhere(raw, []),
+    searchWhere(raw, codeIds),
     sql`${bankAccounts.trackingCode} ilike '%' || ${likeEscape(code)} || '%' escape '\\'`,
   );
 };

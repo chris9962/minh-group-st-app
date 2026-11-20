@@ -441,7 +441,7 @@ export default function BankingPage() {
       <TopBar title="Ngân hàng">
         <SearchField
           label="Tìm khách hàng"
-          placeholder="Tìm tên khách hàng…"
+          placeholder="Tìm tên khách hàng, mã đơn hàng…"
           value={search}
           onChange={(v) => {
             // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
