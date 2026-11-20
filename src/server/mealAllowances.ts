@@ -112,11 +112,14 @@ async function forwardOverdue(now: Date): Promise<void> {
       .where(and(eq(mealAllowanceRows.status, "pending"), sql`${mealAllowanceRows.yearMonth} < ${current}`))
       .returning({
         id: mealAllowanceRows.id,
+        userId: mealAllowanceRows.userId,
         departmentId: mealAllowanceRows.departmentId,
         yearMonth: mealAllowanceRows.yearMonth,
         editedDays: mealAllowanceRows.editedDays,
+        lockedDays: mealAllowanceRows.lockedDays,
       });
     if (moved.length === 0) return;
+    const shownDays = await shownDaysOf(moved);
     const noteOf = await headNamesOf(
       tx,
       [...new Set(moved.flatMap((r) => (r.departmentId ? [r.departmentId] : [])))],
@@ -126,7 +129,7 @@ async function forwardOverdue(now: Date): Promise<void> {
       moved.map((r) => ({
         rowId: r.id,
         kind: "forward" as const,
-        toDays: r.editedDays,
+        toDays: shownDays(r),
         note: noteOf(r.departmentId, r.yearMonth),
         createdAt: forwardAtOf(r.yearMonth),
       })),
@@ -246,8 +249,24 @@ async function ensureRows(month: string, now: Date): Promise<void> {
 type RowRecord = typeof mealAllowanceRows.$inferSelect;
 
 /** Số ngày đang hiện của dòng. */
-const daysOf = (row: RowRecord, basis: MealBasis | undefined): number =>
+const daysOf = (row: Pick<RowRecord, "lockedDays" | "editedDays">, basis: MealBasis | undefined): number =>
   row.lockedDays ?? row.editedDays ?? basis?.appDays ?? 0;
+
+type DaysSource = Pick<RowRecord, "userId" | "yearMonth" | "lockedDays" | "editedDays">;
+
+/** Lịch sử của nút hàng loạt ghi số ngày như khi duyệt từng dòng, nên dòng chưa ai sửa cần số app tính. */
+async function shownDaysOf(rows: DaysSource[]): Promise<(row: DaysSource) => number> {
+  const unedited = rows.filter((r) => r.lockedDays === null && r.editedDays === null);
+  const months = [...new Set(unedited.map((r) => r.yearMonth))];
+  const bases = new Map(
+    await Promise.all(
+      months.map(
+        async (m) => [m, await mealBasisFor(unedited.filter((r) => r.yearMonth === m).map((r) => r.userId), m)] as const,
+      ),
+    ),
+  );
+  return (row) => daysOf(row, bases.get(row.yearMonth)?.get(row.userId));
+}
 
 const rateOf = (month: string): number => salaryRulesFor(month)?.mealRate ?? 0;
 
@@ -328,10 +347,10 @@ function headScopeWhere(actor: User): SQL | undefined | false {
   return false;
 }
 
-/** Kế toán xem tháng trước suốt tháng sau; Trưởng phòng xem tháng này trong ngày cuối tháng. */
+/** Người duyệt xem tháng này trong ngày cuối tháng, kể cả khi có quyền kế toán; còn lại xem tháng trước. */
 function defaultMonth(actor: User, now: Date): string {
   const current = businessMonth(now);
-  if (!can(actor, "salary", "pay-meal") && mealPhaseOf(current, now) === "head-review") return current;
+  if (can(actor, "salary", "approve-meal") && mealPhaseOf(current, now) === "head-review") return current;
   return shiftMonth(current, -1);
 }
 
@@ -515,7 +534,7 @@ export async function mealDetail(actor: User, id: string): Promise<MealDetail | 
 }
 
 type ActResult =
-  | { ok: true; as: "head" | "accounting"; fullName: string; month: string }
+  | { ok: true; as: "head" | "accounting"; fullName: string; month: string; changed: boolean }
   | { ok: false; status: 404 | 409; message: string };
 
 export async function updateMealDays(actor: User, id: string, days: number): Promise<ActResult> {
@@ -540,7 +559,7 @@ export async function updateMealDays(actor: User, id: string, days: number): Pro
     });
     if (!done) return { ok: false, status: 409, message: "Dòng ăn ca vừa đổi. Bạn tải lại danh sách." };
   }
-  return { ok: true, as: allowed.as, fullName, month: row.yearMonth };
+  return { ok: true, as: allowed.as, fullName, month: row.yearMonth, changed: row.editedDays !== days };
 }
 
 export async function actOnMeal(actor: User, id: string, form: MealActionForm): Promise<ActResult> {
@@ -568,7 +587,7 @@ export async function actOnMeal(actor: User, id: string, form: MealActionForm): 
     return true;
   });
   if (!done) return { ok: false, status: 409, message: "Dòng ăn ca vừa đổi. Bạn tải lại danh sách." };
-  return { ok: true, as: allowed.as, fullName, month: row.yearMonth };
+  return { ok: true, as: allowed.as, fullName, month: row.yearMonth, changed: true };
 }
 
 /* ── Các nút hàng loạt ─────────────────────────────────────────────────── */
@@ -615,11 +634,19 @@ async function moveAll(actor: User, where: SQL | undefined, next: MealStatus, ki
       .update(mealAllowanceRows)
       .set({ status: next, updatedAt: mealNow() })
       .where(and(where, ne(mealAllowanceRows.userId, actor.id)))
-      .returning({ id: mealAllowanceRows.id, editedDays: mealAllowanceRows.editedDays });
-    if (moved.length > 0)
+      .returning({
+        id: mealAllowanceRows.id,
+        userId: mealAllowanceRows.userId,
+        yearMonth: mealAllowanceRows.yearMonth,
+        editedDays: mealAllowanceRows.editedDays,
+        lockedDays: mealAllowanceRows.lockedDays,
+      });
+    if (moved.length > 0) {
+      const shownDays = await shownDaysOf(moved);
       await tx
         .insert(mealAllowanceEvents)
-        .values(moved.map((r) => ({ rowId: r.id, kind, actorId: actor.id, toDays: r.editedDays, createdAt: mealNow() })));
+        .values(moved.map((r) => ({ rowId: r.id, kind, actorId: actor.id, toDays: shownDays(r), createdAt: mealNow() })));
+    }
     return moved.length;
   });
   return { ok: true, count };
@@ -648,7 +675,9 @@ export async function markMealsProcessing(actor: User, month: string): Promise<B
   const count = await db.transaction(async (tx) => {
     let moved = 0;
     for (const row of rows) {
-      const days = daysOf(row, basis.get(row.userId));
+      const rowBasis = basis.get(row.userId);
+      // Người không có dòng lương tháng này thì lương không có khoản ăn ca để trừ lại.
+      const days = rowBasis ? daysOf(row, rowBasis) : 0;
       const [updated] = await tx
         .update(mealAllowanceRows)
         .set({ status: "processing", lockedDays: days, updatedAt: mealNow() })

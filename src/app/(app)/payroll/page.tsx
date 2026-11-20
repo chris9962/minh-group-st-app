@@ -121,18 +121,22 @@ export default function PayrollPage() {
   const adjustmentColumn = (kind: SalaryAdjustmentKind): RankColumn<PayrollRow> => ({
     key: kind,
     label: SALARY_ADJUSTMENT_LABEL[kind],
-    render: (r) => (
-      <SalaryAdjustmentCell
-        amount={r.salaryAdjustments[kind]}
-        label={`${SALARY_ADJUSTMENT_LABEL[kind]} của ${r.fullName}`}
-        addLabel={`${SALARY_ADJUSTMENT_ADD_LABEL[kind]} cho ${r.fullName}`}
-        onOpen={() => setAdjusting({ row: r, kind, mode: "list" })}
-        // Ứng trước và ăn ca chỉ sinh ra từ trang Tạm ứng lương (/salary-advances) và Lương ăn ca (/meal-allowances).
-        onAdd={
-          editable && kind !== "advance" && kind !== "meal" ? () => setAdjusting({ row: r, kind, mode: "add" }) : undefined
-        }
-      />
-    ),
+    // Ứng trước và ăn ca chỉ có số khi đã chi; chưa chi thì để trống ô.
+    render: (r) =>
+      (kind === "advance" || kind === "meal") && r.salaryAdjustments[kind] === 0 ? null : (
+        <SalaryAdjustmentCell
+          amount={r.salaryAdjustments[kind]}
+          label={`${SALARY_ADJUSTMENT_LABEL[kind]} của ${r.fullName}`}
+          addLabel={`${SALARY_ADJUSTMENT_ADD_LABEL[kind]} cho ${r.fullName}`}
+          onOpen={() => setAdjusting({ row: r, kind, mode: "list" })}
+          // Ứng trước và ăn ca chỉ sinh ra từ trang Tạm ứng lương (/salary-advances) và Lương ăn ca (/meal-allowances).
+          onAdd={
+            editable && kind !== "advance" && kind !== "meal"
+              ? () => setAdjusting({ row: r, kind, mode: "add" })
+              : undefined
+          }
+        />
+      ),
   });
 
   const columns: RankColumn<PayrollRow>[] = [

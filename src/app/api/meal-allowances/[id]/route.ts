@@ -30,6 +30,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const result = await updateMealDays(guard.actor, id, parsed.data.days);
   if (!result.ok) return Response.json({ message: result.message }, { status: result.status });
+  if (!result.changed) return Response.json({ ok: true });
   await logAudit(guard.actor, {
     ...auditAction(result.as),
     targetLabel: `Sửa ăn ca tháng ${result.month} của ${result.fullName} thành ${formatPoints(parsed.data.days)} ngày`,

@@ -8,6 +8,7 @@ import { Pool } from "pg";
  *   - Trưởng phòng đang làm                 → `salary:approve-meal` phạm vi `managed`. Phó phòng không cấp.
  *   - người đang có `salary:pay-advance`    → `salary:pay-meal`
  *   - người đang có `*:pay-advance`         → `*:pay-meal`
+ *   - tài khoản TOÀN QUYỀN                 → `*:approve-meal`, không thì `isFullAccess` thôi đúng
  *
  * Vì sao là script chứ không phải migration: Postgres cấm dùng giá trị enum vừa
  * thêm trong cùng transaction với `ALTER TYPE … ADD VALUE`.
@@ -25,6 +26,11 @@ import { Pool } from "pg";
 type Row = { id: string; full_name: string; module: string; action: string; scope: string };
 
 const AUDIT_PREFIX = "db:grant-meal-allowance";
+
+const FULL_ACCESS = sql`exists (
+  select 1 from user_permissions f
+  where f.user_id = u.id and f.module = '*' and f.action = 'grant-permission' and f.scope = 'company'
+)`;
 
 async function main() {
   const apply = process.argv.includes("--apply");
@@ -55,6 +61,10 @@ async function main() {
       from users u
       join user_permissions p on p.user_id = u.id
       where p.module in ('salary', '*') and p.action = 'pay-advance'
+      union all
+      select u.id, u.full_name, '*', 'approve-meal', 'company'
+      from users u
+      where ${FULL_ACCESS}
     )
     select w.* from wanted w
     where not exists (

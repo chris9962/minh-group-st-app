@@ -69,7 +69,8 @@ const BATCH_QUESTION: Record<Batch["action"], (n: number) => string> = {
 };
 
 function metaOf(data: MealList): string {
-  const month = `Lương ${mealMonthLabel(data.month)} - ${formatVnd(data.rate)} một ngày`;
+  const rate = data.rate > 0 ? ` - ${formatVnd(data.rate)} một ngày` : "";
+  const month = `Lương ${mealMonthLabel(data.month)}${rate}`;
   if (data.monthClosed) return `${month} - đã chốt lương`;
   if (data.mode === "head" && data.phase === "head-review") return `${month} - duyệt trước 00:00 ngày 1`;
   return month;
@@ -284,7 +285,12 @@ export default function MealAllowancesPage() {
         >
           {shownMonth && (
             <FilterField id="month" label="Tháng">
-              <MonthPicker value={shownMonth} minMonth={MEAL_START_MONTH} onChange={(m) => refine(() => setMonth(m))} />
+              {/* Đọc tháng vừa chọn, không đợi dữ liệu: bấm "Tháng sau" hai lần lúc đang tải vẫn sang đủ hai tháng. */}
+              <MonthPicker
+                value={month || shownMonth}
+                minMonth={MEAL_START_MONTH}
+                onChange={(m) => refine(() => setMonth(m))}
+              />
             </FilterField>
           )}
           <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
