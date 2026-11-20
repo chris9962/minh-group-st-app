@@ -7,7 +7,7 @@ import { Download, Wallet } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { SalaryAdjustmentsDialog } from "@/components/payroll/SalaryAdjustmentsDialog";
 import { SalaryBreakdownDialog } from "@/components/payroll/SalaryBreakdownButton";
-import { SalaryAdjustmentCell, SalaryAmountButton } from "@/components/payroll/SalaryCells";
+import { SalaryAdjustmentCell, SalaryFinalCell } from "@/components/payroll/SalaryCells";
 import { SalaryClosingControl } from "@/components/payroll/SalaryClosingControl";
 import { exportSalaryWorkbook, salaryExportColumns } from "@/components/payroll/salaryExcel";
 import { Button } from "@/components/ui/Button";
@@ -158,11 +158,7 @@ export default function PayrollPage() {
       key: "finalSalary",
       label: "Lương cuối cùng",
       render: (r) => (
-        <SalaryAmountButton
-          amount={r.salary}
-          label={`Lương cuối cùng của ${r.fullName}`}
-          onClick={() => setFinalOf(r)}
-        />
+        <SalaryFinalCell amount={r.salary} personName={r.fullName} onOpen={() => setFinalOf(r)} />
       ),
     },
   ];

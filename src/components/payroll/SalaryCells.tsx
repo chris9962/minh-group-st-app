@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { formatVnd } from "@/lib/format";
 import styles from "./SalaryAdjustments.module.scss";
@@ -19,6 +19,32 @@ export function SalaryAmountButton({
     <button type="button" className={`${styles.amountButton} tabular-nums`} aria-label={label} onClick={onClick}>
       {formatVnd(amount)}
     </button>
+  );
+}
+
+/** Ô Lương cuối cùng: số tiền và icon cùng mở hộp thoại diễn giải; tooltip của icon cho biết bấm vào xem được gì. */
+export function SalaryFinalCell({
+  amount,
+  personName,
+  onOpen,
+}: {
+  amount: number;
+  personName: string;
+  onOpen: () => void;
+}) {
+  return (
+    <span className={styles.adjustCell}>
+      <SalaryAmountButton amount={amount} label={`Lương cuối cùng của ${personName}`} onClick={onOpen} />
+      <Button
+        variant="secondary"
+        icon
+        tooltip="Diễn giải lương"
+        aria-label={`Diễn giải lương của ${personName}`}
+        onClick={onOpen}
+      >
+        <ReceiptText size={16} aria-hidden />
+      </Button>
+    </span>
   );
 }
 
