@@ -28,6 +28,8 @@ export const ScoringExportRow = z.object({
   channelName: z.string(),
   /** Mã ngân hàng khách đã mở tính vào combo, KHÔNG gồm `CNKD`/`HKD` và không gồm dòng VPa HKD. */
   openedBanks: z.array(z.string()),
+  /** Mã ví khách đã mở, như `ShopeePay`. Không tính là ngân hàng nên không nằm trong `openedBanks`. */
+  openedNonBanks: z.array(z.string()),
   msbAccountNumber: z.string(),
   /** `CNKD` · `HKD` · rỗng. */
   /** Loại hộ kinh doanh của tài khoản VPa: `CNKD`, `HKD` hoặc rỗng. Hai cột vì HKD mở được ở nhiều ngân hàng từ kỳ 2026-10-01. */

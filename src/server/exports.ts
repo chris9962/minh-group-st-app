@@ -618,6 +618,7 @@ export async function listScoringExport(
       hamlet: hamletOf(customer?.channelDetail ?? ""),
       channelName: customer?.channelName ?? "",
       openedBanks: bankCodes,
+      openedNonBanks: [...new Set(accounts.map((a) => a.bankCode).filter(isNonBankCode))],
       // File chỉ có ô STK cho MSB; hai mã MSB dùng chung một ô.
       msbAccountNumber:
         accounts.find((a) => a.bankCode.startsWith("MSB"))?.accountNumber ?? "",
