@@ -256,6 +256,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * trên giấy nên nhân viên phải tra được.
    */
   const showPviRefs = actor?.role !== "staff";
+  /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
+  const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
   /** Ảnh giấy viết tay: người tạo đơn hoặc admin tải lên, chỉ khi đơn đã hoàn thành. */
   const canAttachHandwritten =
     Boolean(actor) &&
@@ -287,9 +289,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * huỷ thật lại nằm ở ngày khác — hai bảng không khớp nhau. Đo 2026-09-08:
    * DH-2609-8150 lập 07/09, huỷ 08/09, Tổng quan đếm 54 mà lịch sử huỷ ghi 55.
    *
-   * Chỉ chặn ở giao diện. Máy chủ vẫn nhận lời gọi thẳng của người có
-   * `set-status` để xử lý ca ngoại lệ, xem `cancelInsuranceOrder` ở
-   * `server/insurance.ts`.
+   * Với người có `set-status`, chỉ chặn ở giao diện: máy chủ vẫn nhận lời gọi
+   * thẳng để xử lý ca ngoại lệ. Với người lập, máy chủ cũng chặn theo
+   * `createdAt`, xem `cancelInsuranceOrder` ở `server/insurance.ts`.
    */
   const canCancelToday = data?.orderDate === businessDay();
   /**
@@ -996,9 +998,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-            {/* Đặt trạng thái tuỳ ý và nút Huỷ chỉ hiện với `set-status`
-                (chủ dự án chốt 2026-11-20). */}
-            {(canSetStatus || (data.status === "cancelled" && canCreate)) && (
+            {/* Đặt trạng thái tuỳ ý chỉ hiện với `set-status`; nút Huỷ đứng cùng
+                hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành
+                và vẫn trong ngày lập đơn. */}
+            {(canSetStatus ||
+              (canCancelCompletedOwnOrder && canCancelToday) ||
+              (data.status === "cancelled" && canCreate)) && (
               <div className={styles.override}>
                 {canSetStatus && !lockedByPvi && (
                   <div className={styles.overrideSet}>
@@ -1032,7 +1037,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 )}
                 {/* Đẩy sang mép phải: huỷ đơn không phải một lựa chọn khác của ô
                     chọn bên trái, và nó là việc khó lùi nhất trong hàng này. */}
-                {data.status !== "cancelled" && canCancelToday && canSetStatus && (
+                {data.status !== "cancelled" &&
+                  canCancelToday &&
+                  (canSetStatus || canCancelCompletedOwnOrder) && (
                   <Button
                     variant="secondary"
                     className={styles.overrideCancel}
