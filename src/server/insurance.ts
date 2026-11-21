@@ -1638,8 +1638,11 @@ export async function sendInsuranceOrderToManual(
  * qua `overrideInsuranceOrderStatus`, nên nó được kiểm ở đây chứ không chỉ ở
  * route — route là một đường gọi, hàm này là chỗ luật sống.
  *
- * Chỉ người có `set-status` huỷ được, ngày nào cũng được (chủ dự án chốt
- * 2026-11-20). Người lập không tự huỷ đơn của mình nữa.
+ * Người có `set-status` huỷ được mọi đơn, ngày nào cũng được (chủ dự án chốt
+ * 2026-11-20). Người lập huỷ được đơn ĐÃ hoàn thành của chính mình trong ngày
+ * lập (chủ dự án chốt 2026-11-21): đơn chưa hoàn thành có đường xoá riêng với
+ * quyền `insurance:delete`, còn đơn hoàn thành là hợp đồng đã phát hành nên
+ * phải giữ vết huỷ và lý do.
  */
 export async function cancelInsuranceOrder(
   actor: User,
@@ -1652,7 +1655,9 @@ export async function cancelInsuranceOrder(
   const current = await rawById(id);
   if (!current) return null;
 
-  if (!can(actor, "insurance", "set-status")) return null;
+  const canOverride = can(actor, "insurance", "set-status");
+  const creatorCancellingDone = current.status === "done" && current.createdById === actor.id;
+  if (!canOverride && !creatorCancellingDone) return null;
 
   if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
 
@@ -1666,10 +1671,35 @@ export async function cancelInsuranceOrder(
   if (current.status === "creating")
     return { ok: false, message: "Đơn đang gửi PVI, đợi tối đa 2 phút rồi huỷ." };
 
+  /**
+   * Mốc là `createdAt` hệ thống, không phải `orderDate`: ngày tạo đơn sửa tay
+   * được ("nhập bù"), lấy nó làm mốc thì sửa ngày là tự mở lại được cửa huỷ.
+   */
+  if (!canOverride) {
+    const [created] = await db
+      .select({ at: insuranceOrders.createdAt })
+      .from(insuranceOrders)
+      .where(eq(insuranceOrders.id, id))
+      .limit(1);
+    if (!created || businessDay(created.at) !== businessDay())
+      return { ok: false, message: "Chỉ huỷ được trong ngày lập đơn." };
+  }
+
   const updated = await db
     .update(insuranceOrders)
     .set({ status: "cancelled", updatedAt: new Date() })
-    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status)))
+    // Người lập chỉ huỷ được đơn của CHÍNH mình khi nó vẫn đang `done`. Điều
+    // kiện nằm trong câu ghi để một lượt đổi trạng thái song song không mở
+    // đường huỷ một đơn đã bị người khác chuyển đi.
+    .where(
+      canOverride
+        ? and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status))
+        : and(
+            eq(insuranceOrders.id, id),
+            eq(insuranceOrders.status, "done"),
+            eq(insuranceOrders.createdBy, actor.id),
+          ),
+    )
     .returning({ id: insuranceOrders.id });
 
   if (updated.length === 0)
